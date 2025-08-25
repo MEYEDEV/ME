@@ -482,7 +482,7 @@ const themePresets = {
     "urls": []
   },
   {
-    "title": "Clare Scott",
+    "title": "       Clare Scott",
     "description": "",
     "x": 1066.6445694226097,
     "y": 281.40851166044956,
