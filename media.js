@@ -1170,7 +1170,11 @@ function showWelcomeMessage() {
           
           <strong>Gamepad Controls (Keyboard):</strong><br>
           • <kbd>Shift</kbd> - Bubble Bounce<br>
-          • <kbd>.</kbd> - Bubble Collect
+          • <kbd>.</kbd> - Bubble Collect<br>
+
+          <strong>Special Thanks to: (Keyboard):</strong><br>
+          • LAForster<br>
+          • CQC
         </div>
       `;
     }
