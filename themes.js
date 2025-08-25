@@ -35,7 +35,12 @@ const themePresets = {
     "ballVelocityBoost": 0,
     "ballVelocityDecay": 0,
     "attachments": [],
-    "urls": []
+    "urls": [
+      {
+        "href": "https://www.judiciary.uk/prevention-of-future-death-reports/sophie-williams-prevention-of-future-deaths-report/",
+        "title": "https://www.judiciary.uk/prevention-of-future-death-reports/sophie-williams-prevention-of-future-deaths-report/"
+      }
+    ]
   },
   {
     "title": "DACBeachcroft       CharlotteKistell-Gough",
@@ -263,7 +268,7 @@ const themePresets = {
     "textColor": "white",
     "radius": 69,
     "font": "Arial",
-    "image": "images/drb.png",
+    "image": "images/drbc.png",
     "glow": true,
     "fixed": true,
     "fontSize": 14,
@@ -310,7 +315,12 @@ const themePresets = {
     "ballVelocityDecay": 0,
     "flash": false,
     "attachments": [],
-    "urls": []
+    "urls": [
+      {
+        "href": "https://www.judiciary.uk/prevention-of-future-death-reports/alice-litman-prevention-of-future-deaths-report/",
+        "title": "https://www.judiciary.uk/prevention-of-future-death-reports/alice-litman-prevention-of-future-deaths-report/"
+      }
+    ]
   },
   {
     "title": "DACBeachcroft        SeanDoherty",
