@@ -80,14 +80,57 @@
     };
   </script>
   
-  <title>💭MindsEye💬~Ideas</title>
+  <title>💭</title>
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
   <!-- Toolbar -->
   <div id="toolbar">
-    <div style="position: relative; display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 20px; max-width: none; min-height: 20px; max-height: 180px;">
-      <div id="musicVisualizer" style="display: none; position: absolute; top: 2px; left: 0; width: 100%; height: calc(100% - 4px); background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; z-index: 1;">
+    <script>
+      (function(){
+        function sizeButtons(){
+          try {
+            const toolbar = document.getElementById('toolbar');
+            if(!toolbar) return;
+            // Count only visible non-dropdown children (buttons/wrappers), exclude scripts/hidden nodes
+            const items = Array.from(toolbar.children).filter(c => {
+              if (c.id === 'toolbarDropdowns' || c.tagName === 'SCRIPT') return false;
+              const style = window.getComputedStyle(c);
+              return style.display !== 'none' && style.visibility !== 'hidden' && c.offsetWidth >= 0;
+            });
+            const dropdown = document.getElementById('toolbarDropdowns');
+            const toolbarWidth = toolbar.clientWidth;
+            let dropdownMin = 0; // dropdown absorbs all leftover space
+            const count = items.length;
+            // Use integer size to avoid subpixel accumulation overflow
+            const maxBtnSize = 60; // cap at wide widths
+            dropdownMin = 140; // try to reserve space for dropdowns on small widths
+            let size = 0;
+            if (count > 0) {
+              // Aim to leave dropdownMin for the dropdown; cap at maxBtnSize
+              size = (toolbarWidth - dropdownMin) / count;
+              size = Math.min(maxBtnSize, size);
+              // If too narrow, allow size to shrink further (no minimum), but avoid negative
+              if (size < 0) size = toolbarWidth / count;
+            }
+            toolbar.style.setProperty('--btn-size', size + 'px');
+            toolbar.style.height = size + 'px';
+            if (dropdown) {
+              const leftover = Math.max(0, toolbarWidth - (size * count));
+              dropdown.style.flex = `0 0 ${leftover}px`;
+              dropdown.style.width = `${leftover}px`;
+              dropdown.style.maxWidth = `${leftover}px`;
+            }
+          } catch(_){}
+        }
+        window.addEventListener('resize', sizeButtons);
+        window.addEventListener('orientationchange', sizeButtons);
+        document.addEventListener('DOMContentLoaded', sizeButtons);
+        setTimeout(sizeButtons, 0);
+      })();
+    </script>
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; flex: 1; max-width: none; max-height: 180px;">
+      <div id="musicVisualizer" style="display: none; position: absolute; top: 2px; left: 0; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; z-index: 1;">
         <div id="visualizerBars" style="display: flex; justify-content: space-around; align-items: center; height: 100%; padding: 2px;">
           <div class="viz-bar" style="width: 4px; background: #8FE04A; transition: height 0.1s ease;"></div>
           <div class="viz-bar" style="width: 4px; background: #8FE04A; transition: height 0.1s ease;"></div>
@@ -99,22 +142,22 @@
           <div class="viz-bar" style="width: 4px; background: #8FE04A; transition: height 0.1s ease;"></div>
         </div>
       </div>
-      <button onclick="toggleVideoPlayer()" oncontextmenu="handleVideoRightClick(); return false;" title="Toggle Video Player (Right-click to close)" class="toolbar-btn" data-icon="video" style="position: relative; z-index: 2; width: 100%; height: 100%;">📹</button>
+      <button onclick="toggleVideoPlayer()" oncontextmenu="handleVideoRightClick(); return false;" title="Toggle Video Player (Right-click to close)" class="toolbar-btn" data-icon="video" style="position: relative; z-index: 2;">📹</button>
     </div>
-    <div style="position: relative; display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 20px; max-width: none; min-height: 20px; max-height: 180px;">
-      <div id="musicVisualizer2" style="display: none; position: absolute; top: 2px; left: 0; width: 100%; height: calc(100% - 4px); background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; z-index: 1;">
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; flex: 1; max-width: none; max-height: 180px;">
+      <div id="musicVisualizer2" style="display: none; position: absolute; top: 2px; left: 0; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; z-index: 1;">
         <div id="visualizerBars2" style="display: flex; justify-content: space-around; align-items: flex-end; height: 100%; padding: 2px;">
-          <div class="viz-bar" style="width: 4px; background: #8FE04A; transition: height 0.1s ease;"></div>
-          <div class="viz-bar" style="width: 4px; background: #8FE04A; transition: height 0.1s ease;"></div>
-          <div class="viz-bar" style="width: 4px; background: #8FE04A; transition: height 0.1s ease;"></div>
-          <div class="viz-bar" style="width: 4px; background: #8FE04A; transition: height 0.1s ease;"></div>
-          <div class="viz-bar" style="width: 4px; background: #8FE04A; transition: height 0.1s ease;"></div>
-          <div class="viz-bar" style="width: 4px; background: #8FE04A; transition: height 0.1s ease;"></div>
-          <div class="viz-bar" style="width: 4px; background: #8FE04A; transition: height 0.1s ease;"></div>
-          <div class="viz-bar" style="width: 4px; background: #8FE04A; transition: height 0.1s ease;"></div>
+          <div class="viz-bar" style="width: 6px; background: #8FE04A; transition: height 0.1s ease;"></div>
+          <div class="viz-bar" style="width: 6px; background: #8FE04A; transition: height 0.1s ease;"></div>
+          <div class="viz-bar" style="width: 6px; background: #8FE04A; transition: height 0.1s ease;"></div>
+          <div class="viz-bar" style="width: 6px; background: #8FE04A; transition: height 0.1s ease;"></div>
+          <div class="viz-bar" style="width: 6px; background: #8FE04A; transition: height 0.1s ease;"></div>
+          <div class="viz-bar" style="width: 6px; background: #8FE04A; transition: height 0.1s ease;"></div>
+          <div class="viz-bar" style="width: 6px; background: #8FE04A; transition: height 0.1s ease;"></div>
+          <div class="viz-bar" style="width: 6px; background: #8FE04A; transition: height 0.1s ease;"></div>
         </div>
       </div>
-      <button onclick="toggleMusicPanel()" oncontextmenu="handleMusicRightClick(); return false;" title="Music Panel (Right-click to start playlist, then play/pause)" class="toolbar-btn" data-icon="music" style="position: relative; z-index: 2; width: 100%; height: 100%;">🎶</button>
+      <button onclick="toggleMusicPanel()" oncontextmenu="handleMusicRightClick(); return false;" title="Music Panel (Right-click to start playlist, then play/pause)" class="toolbar-btn" data-icon="music" style="position: relative; z-index: 2;">🎶</button>
     </div>
     <button onclick="rollDice()" oncontextmenu="showDiceSlider(); return false;" title="Random (Right-click for slider)" class="toolbar-btn" data-icon="dice" id="diceButton"></button>
     <button onclick="cycleBackground()" oncontextmenu="rotateBackground(); return false;" title="Change Background (Right-click to rotate)" class="toolbar-btn" data-icon="cycle">🔄</button>
@@ -138,7 +181,7 @@
         </select>
       </div>
       <label title="Motion (Right-click to pause/unpause)" style="width: 100%; display: block; margin: 0; padding: 0;"> 
-        <input max="3" min="0.0" onchange="const slider = this; const value = parseFloat(slider.value); if(value !== 0) { previousSpeed = value; originalSpeed = value; slider.classList.remove('paused'); } else { slider.classList.add('paused'); } speedMultiplier = value" oncontextmenu="toggleSpeed(); return false;" step="0.1" type="range" value="1.3" style="width: 100%; margin: 0; padding: 0;"/>
+        <input max="3" min="0.0" onchange="const slider = this; const value = parseFloat(slider.value); if(value !== 0) { previousSpeed = value; originalSpeed = value; slider.classList.remove('paused'); } else { slider.classList.add('paused'); } speedMultiplier = value" oncontextmenu="toggleSpeed(); return false;" step="0.1" type="range" value="0" class="paused" style="width: 100%; margin: 0; padding: 0;"/>
       </label>
     </div>
     
@@ -197,29 +240,24 @@
 
   <!-- Media Toolbar -->
   <div id="mediaToolbar">
-    <label>🫟 Background:
-      <input accept="image/*" id="bgLoader" type="file"/>
-    </label>
-    <label>📀 Video:
-      <input accept="video/*" id="videoLoader" type="file"/>
-    </label>
-    <label>🎥 YouTube:
-      <input id="youtubeLink" placeholder="Paste Video URL" type="text"/>
-      <button onclick="loadYouTubeVideo()" class="toolbar-btn" data-icon="youtube">Load</button>
-    </label>
-    <div class="media-separator"></div>
-    <button onclick="recordState('start')" class="record-btn start-btn toolbar-btn" data-icon="record-in" title="Mark In Point">🎬 In</button>
-    
-    <button onclick="recordState('keyframe')" class="record-btn keyframe-btn toolbar-btn" data-icon="keyframe" title="Add Keyframe">📍 Key</button>
-    <button onclick="recordState('end')" class="record-btn end-btn toolbar-btn" data-icon="record-out" title="Mark Out Point">🏁 Out</button>
-    <button onclick="startPlayback()" class="play-btn toolbar-btn" data-icon="play" title="Play In to Out">▶️ Play</button>
-    <div class="timeline-control">
-      <span>Timeline:</span>
-      <input id="mediaPlaybackSlider" max="1" min="0" step="0.01" type="range" value="0"/>
-      <span id="playbackTimeDisplay" style="color: white; font-size: 12px; margin-left: 10px;">00:00 / 00:00</span>
+    <div class="controls-row" style="display:flex; gap:4px; width:100%; align-items:center;">
+      <div class="media-separator"></div>
+      <button onclick="recordState('start')" class="record-btn start-btn toolbar-btn" data-icon="record-in" title="Mark In Point">🎬 In</button>
+      <button onclick="recordState('keyframe')" class="record-btn keyframe-btn toolbar-btn" data-icon="keyframe" title="Add Keyframe">📍 Key</button>
+      <button onclick="recordState('end')" class="record-btn end-btn toolbar-btn" data-icon="record-out" title="Mark Out Point">🏁 Out</button>
+      <button onclick="startPlayback()" class="play-btn toolbar-btn" data-icon="play" title="Play In to Out">▶️ Play</button>
+      <button onclick="saveAnimation()" class="save-btn toolbar-btn" data-icon="save" title="Save Animation">💾 Save</button>
+      <button onclick="loadAnimation()" class="load-btn toolbar-btn" data-icon="load" title="Load Animation">📂 Load</button>
+      <button onclick="toggleMediaToolbarMinimize()" class="minimize-btn toolbar-btn" data-icon="hide" title="Hide/Show"></button>
     </div>
-    <div class="duration-control">
-      <span>Duration:</span>
+    <div class="timeline-row" style="display:flex; gap:8px; width:100%; align-items:center; margin-top:6px;">
+      <span>Timeline:</span>
+      <div id="timelineSliderWrap" style="position: relative; flex: 1 1 auto; display: flex; align-items: center;">
+        <input id="mediaPlaybackSlider" max="1" min="0" step="0.01" type="range" value="0" style="width: 100%;"/>
+        <div id="timelineMarkersOverlay" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 100%; height: 100%; pointer-events: none;"></div>
+      </div>
+      <span id="playbackTimeDisplay" style="color: white; font-size: 12px; margin-left: 10px;">00:00 / 00:00</span>
+      <span style="margin-left: 12px;">Duration:</span>
       <select id="mediaPlaybackDuration">
         <option value="5000">5s</option>
         <option selected="" value="10000">10s</option>
@@ -230,10 +268,6 @@
         <option value="50000">50s</option>
       </select>
     </div>
-    <button onclick="saveAnimation()" class="save-btn toolbar-btn" data-icon="save" title="Save Animation">💾 Save</button>
-    <button onclick="loadAnimation()" class="load-btn toolbar-btn" data-icon="load" title="Load Animation">📂 Load</button>
-    <button onclick="captureCanvas()" class="snapshot-btn toolbar-btn" data-icon="snapshot-media" title="Snapshot">📷 Snapshot</button>
-    <button onclick="toggleMediaToolbarMinimize()" class="minimize-btn toolbar-btn" data-icon="hide" title="Hide/Show"></button>
   </div>
 
   <!-- Video Elements -->
@@ -285,6 +319,16 @@
     </div>
     <div id="videoPlaylistItems">
       <!-- Playlist items will be loaded here -->
+    </div>
+    <div style="margin-top: 10px; padding: 10px; background: rgba(0, 0, 0, 0.3); border-radius: 5px;">
+      <label style="display: block; margin-bottom: 5px; color: gold; font-size: 12px;">🫟 Background Image:</label>
+      <input accept="image/*" id="bgLoader" type="file"/>
+      <div style="text-align: right; margin-top: 10px;">
+        <button onclick="closePlaylist()" title="Close" style="background: rgba(255,0,0,0.7); color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 10px;">✕ Close</button>
+      </div>
+    </div>
+    <div style="margin-top: 6px; padding: 8px; background: rgba(0, 0, 0, 0.25); border-radius: 5px;">
+      <button onclick="toggleVideoBackground()" style="background: linear-gradient(45deg, #607D8B, #455A64); border: none; color: white; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🖼️ Use Video As Background</button>
     </div>
   </div>
 
@@ -348,11 +392,12 @@
 
   <!-- Analysis Panel -->
   <div id="analysisPanel" class="analysis-panel" style="display: none;">
-    <h3 style="margin: 5px 0; color: gold;">📊 Analysis</h3>
+    <h3 style="margin: 5px 0; color: gold;">🪩Analysis∞</h3>
     <div style="display: flex; flex-direction: column; gap: 8px; margin: 15px 0;">
-      <button onclick="openAnalysisIframe('suggestions')" style="background: linear-gradient(45deg, #4CAF50, #45a049); border: none; color: white; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; text-align: left;">🍿 Suggestions:<br>Current: Anime (All)</button>
-      <button onclick="openAnalysisIframe('ideas')" style="background: linear-gradient(45deg, #2196F3, #1976D2); border: none; color: white; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; text-align: left;">🧠 Ideas:<br>Current: Comedy (All)</button>
-      <button onclick="toggleProjectMPanel()" style="background: linear-gradient(45deg, #9C27B0, #7B1FA2); border: none; color: white; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; text-align: left;">🎨 Music Visualization<br><span style="font-size: 11px; opacity: 0.8;">Butterchurn & MilkDrop</span></button>
+      <button onclick="openAnalysisIframe('suggestions')" style="background: linear-gradient(45deg, #4CAF50, #45a049); border: none; color: white; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; text-align: left;">Suggestions:<br>Anime (All)🍿</button>
+      <button onclick="openAnalysisIframe('ideas')" style="background: linear-gradient(45deg, #2196F3, #1976D2); border: none; color: white; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; text-align: left;">🎬 Ideas:<br>FilmTV (All)</button>
+      <button onclick="window.open('https://jannerap.github.io/SAR/', '_blank')" style="background: linear-gradient(45deg, #FF6B35, #F7931E); border: none; color: white; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; text-align: left;">SAR🐾 Tracker</button>
+      <button onclick="toggleProjectMPanel()" style="background: linear-gradient(45deg, #9C27B0, #7B1FA2); border: none; color: white; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; text-align: left;">🎶Music🫟 Visualization<br><span style="font-size: 11px; opacity: 0.8;">Butterchurn🥞</span></button>
       <button onclick="openAnalysisIframe('v6')" style="background: linear-gradient(45deg, #9C27B0, #7B1FA2); border: none; color: white; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; text-align: left;">🎯 V6</button>
       <button onclick="openAnalysisIframe('credits')" style="background: linear-gradient(45deg, #607D8B, #455A64); border: none; color: white; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; text-align: left;">👥 Credits</button>
     </div>
@@ -361,10 +406,8 @@
 
   <!-- Analysis Iframe Container -->
   <div id="analysisIframeContainer" class="analysis-iframe-container" style="display: none;">
-    <div style="position: relative; height: 100%;">
-      <button onclick="closeAnalysisIframe()" class="panel-close-btn" style="position: absolute; top: 5px; right: 5px; z-index: 1;">✖️</button>
-      <iframe id="analysisIframe" style="width: 100%; height: 100%; border: none; border-radius: 6px;"></iframe>
-    </div>
+    <button onclick="closeAnalysisIframe()" class="analysis-iframe-close-btn">✖️</button>
+    <iframe id="analysisIframe" style="width: 100%; height: 100%; border: none; border-radius: 6px;"></iframe>
   </div>
 
   <!-- Dice Overlay -->
@@ -416,8 +459,17 @@
 
   <!-- Music Panel -->
   <div class="music-panel" id="musicPanel">
-    <h3>🎵 Music Player
-      <div class="music-close-btn" onclick="closeMusicPanel()" title="Close Music Panel">✖️</div>
+    <h3 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+      <span style="display:flex; align-items:center; gap:8px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; user-select:none;">
+          <input type="checkbox" id="musicShuffleToggle" onchange="toggleMusicShuffle(this.checked)" style="width:14px; height:14px; cursor:pointer;" title="Shuffle" aria-label="Shuffle">
+          <span>🧬</span>
+        </label>
+        <span>🎵 Music Player</span>
+      </span>
+      <span style="display:flex; align-items:center; gap:8px;">
+        <div class="music-close-btn" onclick="closeMusicPanel()" title="Close Music Panel">✖️</div>
+      </span>
     </h3>
     <!-- Now Playing Section -->
     <div class="now-playing-section">
@@ -450,7 +502,11 @@
       <div class="projectm-close-btn" onclick="closeProjectMPanel()" title="Close Visualization">✖️</div>
     </h3>
     <div class="projectm-controls">
-      <button onclick="startButterchurn()">🎵 Start Visualizer</button>
+      <button onclick="toggleButterchurn()" id="toggleVisualizerBtn">🎵 Start Visualizer</button>
+      <button onclick="loadLocalPresets()">🏠 Load Local Presets</button>
+      <button onclick="refreshVisualizerPresets()">🔄 Refresh Presets</button>
+      <button onclick="reloadAllPresets()">🔄 Reload All</button>
+      <button onclick="checkVisualizerState()">🔍 Debug State</button>
       <button onclick="retryButterchurn()" id="retryBtn" style="display: none;">🔄 Retry Loading</button>
       <button onclick="nextLocalEffect()" id="nextLocalEffectBtn" style="display: none;">🎨 Next Effect</button>
       <button onclick="previousPreset()">⏮️ Previous</button>
@@ -484,44 +540,44 @@
   <!-- Main Panel -->
   <div class="panel" id="panel">
     <div style="position: relative; margin-bottom: 10px; padding-top: 5px; height: 30px; display: flex; align-items: center; gap: 0px;">
-      <div class="panel-close-btn" onclick="closePanel()" title="Close Panel" style="position: static;">🅇</div>
-      <button onclick="minimizePanel()" title="Minimize" style="background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 10px;">⌑</button>
-      <input type="checkbox" id="disablePanelTimeout" title="Disable Panel Timeout" style="width: 12px; height: 12px; cursor: pointer;">
+      <div class="panel-close-btn" onclick="closePanel()" title="Close Panel" style="position: static; margin: 0; flex: 1;">ⓧ</div>
+      <button onclick="minimizePanel()" title="Minimize" style="background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 10px; margin: 0; flex: 1;">Minimize</button>
+      <button onclick="savePanel()" title="Save" style="background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 10px; margin: 0; flex: 1;">💾</button>
+      <button onclick="deleteIdea()" title="Delete Bubble" style="background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 10px; margin: 0; flex: 1;">Delete</button>
+      <button onclick="togglePanelSide()" title="Toggle Panel Side" style="background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 10px; margin: 0; flex: 1;">↔️</button>
+      <button onclick="openDescriptionInput()" title="Input" style="background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 10px; margin: 0; flex: 1;">Input</button>
+      <button onclick="resizePanelToggle()" title="Resize Panel" style="background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 10px; margin: 0; flex: 1;">Resize</button>
+      <input type="checkbox" id="disablePanelTimeout" title="Disable Panel Timeout" style="width: 12px; height: 12px; cursor: pointer; margin: 0; flex: 1;">
     </div>
     <input id="title" placeholder="Title"/>
-    <div style="display: flex; gap: 10px; margin: 10px 0;">
+    <div style="display: flex; gap: 10px; margin: 0px 0;">
       <input id="dateField" type="date" style="flex: 1; background-color: rgba(0, 0, 0, 0.6); color: gold; border: 2px solid darkgreen; font-family: 'Monaco', serif; padding: 6px; border-radius: 6px;"/>
       <input id="timeField" type="time" style="flex: 1; background-color: rgba(0, 0, 0, 0.6); color: gold; border: 2px solid darkgreen; font-family: 'Monaco', serif; padding: 6px; border-radius: 6px;"/>
     </div>
     <textarea id="description" placeholder="Description" rows="1"></textarea>
     
-    <div style="margin: 10px 0; display: flex; flex-wrap: wrap; gap: 0px;">
-      <button onclick="savePanel()" title="Save" class="bubble-btn" data-png="busave" style="flex: 0 0 33.333%;">Save💾</button>
-      <button onclick="deleteIdea()" title="Delete Bubble" class="bubble-btn" data-png="budelete" style="flex: 0 0 33.333%;">Delete💭️</button>
-      <button onclick="clearUploadedImage()" title="Clear IMG" class="bubble-btn" data-png="buimage" style="flex: 0 0 33.333%;">🗑️Image</button>
-    </div>
-    
     <div class="resize-handle">⤡</div>
     
-    <div style="margin-top: 1px;">
-      <input accept="image/*" id="uploadImage" type="file"/>
+    <div style="margin-top: 1px; display: flex; align-items: center; gap: 8px;">
+      <input accept="image/*" id="uploadImage" type="file" style="flex: 1;"/>
+      <button onclick="clearUploadedImage()" title="Clear IMG" style="background: rgba(0,0,0,0.7); color: white; border: 2px solid darkgreen; border-radius: 3px; padding: 4px 8px; cursor: pointer; font-size: 12px;">🗑️</button>
     </div>
     
     <label style="margin-left: 10px;">⬆️ Upload PNG | ⬇️ Change 💭 Size
-      <input id="sizeSlider" title="Bubble Size" max="200" min="10" oninput="selectedIdea.radius = parseInt(this.value)" type="range" value="75"/>
+      <input id="sizeSlider" title="Bubble Size" max="400" min="10" oninput="selectedIdea.radius = parseInt(this.value)" type="range" value="75"/>
     </label><br>
     
     <div style="margin-left: 10px; display: flex; gap: 10px; align-items: center;">
-      <label style="flex: 1;">⬇️ Text Size
+      <label style="flex: 1;">⬇️ Text Size 💬
         <input id="fontSizeSlider" title="Text Size" max="48" min="8" oninput="selectedIdea.fontSize = parseInt(this.value)" type="range" value="14"/>
       </label>
-      <label style="flex: 1;">⬇️ Ratio
+      <label style="flex: 1;">⬇️ Ratio ↔
         <input id="heightRatioSlider" title="Ratio" max="1.7" min="0.3" step="0.1" oninput="updateBubbleRatio(this.value)" type="range" value="1.0"/>
       </label>
     </div>
     
     <div style="margin: 10px 0;">
-      <label style="margin-left: 10px;">⬆️ Rotation | ⬇️ Shape
+      <label style="margin-left: 10px;">⬇️ Select 💭 Shape 💠
         <select id="shapeSelector" style="background-color: rgba(0, 0, 0, 0.6); color: gold; border: 2px solid darkgreen; font-family: 'Monaco', serif; padding: 6px; border-radius: 6px; width: 100%; margin-top: 5px;">
           <option value="circle">Circle</option>
           <option value="square">Square</option>
@@ -547,7 +603,7 @@
     <input id="rotationSlider" title="Rotate Bubble" max="360" min="0" oninput="selectedIdea.rotation = parseInt(this.value)" type="range" value="0"/>
     
     <div style="margin-bottom: 10px;">
-      <label style="margin-left: 10px;">⬆️ Rotation | ⬇️ Select Image 👾
+      <label style="margin-left: 10px;">⬆️ Rotation 🔄 | ⬇️ Select Image 👾
         <select id="imageSelector" style="background-color: rgba(0, 0, 0, 0.6); color: gold; border: 2px solid darkgreen; font-family: 'Monaco', serif; padding: 6px; border-radius: 6px; width: 100%; margin-top: 5px;">
           <option value="">None</option>
           <option value="images/a1.png">a1.png</option>
@@ -627,21 +683,55 @@
     </div>
     
     <div style="margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 0px;">
-      <button onclick="changeColor()" title="Bubble Colour" class="bubble-btn large" data-png="bucolor">💭️Colour</button>
-      <button onclick="changeTextColor()" title="Text Colour" class="bubble-btn large" data-png="butextcolor">💬Colour</button>
-      <button onclick="closePanel()" title="Close" class="bubble-btn large" data-png="buclose">Close💭️</button>
-      <button onclick="toggleGlow()" title="Toggle Glow" class="bubble-btn large" data-png="buglow">Glow🔆</button>
-      <button onclick="changeGlowColor()" title="Change Glow Color" class="bubble-btn large" data-png="buglowcolor">Colour🔅</button>
-      <button onclick="toggleFlash()" title="Toggle Flash" class="bubble-btn large" data-png="buflash">Flash🎇</button>
-      <button onclick="toggleTransparent()" title="Toggle Transparent" class="bubble-btn large" data-png="buopaque">Opaque</button>
-      <button onclick="toggleFixed()" title="Toggle Fixed Mode" class="bubble-btn large" data-png="busolid">Solid🗿</button>
-      <button onclick="toggleStatic()" title="Toggle Static Mode" class="bubble-btn large" data-png="bustatic">Static🧽</button>
-      <button onclick="cycleFont()" title="Cycle Fonts" class="bubble-btn large" data-png="bufont">Font</button>
-      <button onclick="toggleCheckeredBorder()" title="Toggle Checkered Border" class="bubble-btn large" data-png="bucheck">Check🏁</button>
-      <button onclick="togglePanelSide()" title="Toggle Panel Side" class="bubble-btn large" data-png="buside">↔️</button>
+      <button onclick="changeColor()" title="Bubble Colour" class="bubble-btn large" data-png="bucolor" style="transform: scale(0.75); transform-origin: center; margin: 0 !important; padding: 0 !important; outline: none; flex: 0 0 auto;">💭️Colour</button>
+      <button onclick="changeTextColor()" title="Text Colour" class="bubble-btn large" data-png="butextcolor" style="transform: scale(0.75); transform-origin: center; margin: 0 !important; padding: 0 !important; outline: none; flex: 0 0 auto;">💬Colour</button>
+      <button onclick="toggleGlow()" title="Toggle Glow" class="bubble-btn large" data-png="buglow" style="transform: scale(0.75); transform-origin: center; margin: 0 !important; padding: 0 !important; outline: none; flex: 0 0 auto;">Glow🔆</button>
+      <button onclick="changeGlowColor()" title="Change Glow Color" class="bubble-btn large" data-png="buglowcolor" style="transform: scale(0.75); transform-origin: center; margin: 0 !important; padding: 0 !important; outline: none; flex: 0 0 auto;">Colour🔅</button>
+      <button onclick="toggleFlash()" title="Toggle Flash" class="bubble-btn large" data-png="buflash" style="transform: scale(0.75); transform-origin: center; margin: 0 !important; padding: 0 !important; outline: none; flex: 0 0 auto;">Flash🎇</button>
+      <button onclick="toggleTransparent()" title="Toggle Transparent" class="bubble-btn large" data-png="buopaque" style="transform: scale(0.75); transform-origin: center; margin: 0 !important; padding: 0 !important; outline: none; flex: 0 0 auto;">Opaque</button>
+      <button onclick="toggleFixed()" title="Toggle Fixed Mode" class="bubble-btn large" data-png="busolid" style="transform: scale(0.75); transform-origin: center; margin: 0 !important; padding: 0 !important; outline: none; flex: 0 0 auto;">Solid🗿</button>
+      <button onclick="toggleStatic()" title="Toggle Static Mode" class="bubble-btn large" data-png="bustatic" style="transform: scale(0.75); transform-origin: center; margin: 0 !important; padding: 0 !important; outline: none; flex: 0 0 auto;">Static🧽</button>
+      <button onclick="cycleFont()" title="Cycle Fonts" class="bubble-btn large" data-png="bufont" style="transform: scale(0.75); transform-origin: center; margin: 0 !important; padding: 0 !important; outline: none; flex: 0 0 auto;">Font</button>
+      <button onclick="toggleCheckeredBorder()" title="Toggle Checkered Border" class="bubble-btn large" data-png="bucheck" style="transform: scale(0.75); transform-origin: center; margin: 0 !important; padding: 0 !important; outline: none; flex: 0 0 auto;">Check🏁</button>
+    </div>
+    <div style="margin: 8px 0; display: flex; align-items: center; gap: 0px;">
+      <label style="color: gold; font-size: 12px; flex: 0 0 auto;">🎧Audio:</label>
+      <input accept="audio/*" id="uploadAudio" type="file" style="flex: 1; margin: 0 6px;">
+      <button id="playBubbleAudioBtn" onclick="playSelectedBubbleAudio()" title="Play/Pause Bubble Audio" style="background: rgba(0,0,0,0.7); color: white; border: 2px solid darkgreen; border-radius: 3px; padding: 4px 8px; cursor: pointer; font-size: 12px; width: 32px; height: 32px; flex: 0 0 auto;">▶︎</button>
+      <button id="deleteBubbleAudioBtn" onclick="clearSelectedBubbleAudio()" title="Delete Audio" style="background: rgba(0,0,0,0.7); color: white; border: 2px solid darkgreen; border-radius: 3px; padding: 4px 8px; cursor: pointer; font-size: 12px; width: 32px; height: 32px; flex: 0 0 auto;">🔇</button>
+    </div>
+    <div style="margin: 4px 0; display: flex; align-items: center;">
+      <span id="uploadAudioName" style="font-size: 12px; color: #ccc; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">No file selected.</span>
+    </div>
+    <div style="margin: 6px 0; display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap;">
+      <label style="color: gold; font-size: 12px;">📎 Files:</label>
+      <input accept=".png,.gif,.webp,.jpg,.jpeg,image/jpeg,.pdf,.doc,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.mp4,video/mp4,.csv,.xls,image/jpg,image/png,image/webp" id="uploadDocs" type="file" multiple style="flex: 1;">
+      <div id="attachmentsList" style="display: flex; flex-direction: column; gap: 4px; width: 100%; max-height: 140px; overflow: auto;"></div>
+    </div>
+    <div style="margin: 6px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <label style="color: gold; font-size: 12px;">🔗 URL:</label>
+      <input id="urlInput" type="text" placeholder="https://example.com" style="flex: 1; background-color: rgba(0, 0, 0, 0.6); color: gold; border: 2px solid darkgreen; font-family: 'Monaco', serif; padding: 6px; border-radius: 6px;"/>
+      <button onclick="addBubbleUrl()" title="Add URL" style="background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 3px; padding: 4px 8px; cursor: pointer; font-size: 12px;">Add</button>
+      <div id="urlList" style="display: flex; flex-direction: column; gap: 4px; width: 100%; max-height: 140px; overflow: auto;"></div>
     </div>
     
 
+  </div>
+
+  <!-- Description Input Modal -->
+  <div id="descriptionInputModal" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center;">
+    <div style="background: #111; border: 2px solid #4CAF50; border-radius: 8px; width: min(800px, 90vw); max-width: 90vw; padding: 16px; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+      <div style="display:flex; align-items:center; justify-content: space-between; gap:8px; margin-bottom:10px;">
+        <h3 style="margin:0; color: #8FE04A;">📝 Edit Description</h3>
+        <button onclick="closeDescriptionInput()" style="background:#333; color:#fff; border:none; border-radius:4px; padding:6px 10px; cursor:pointer;">Close</button>
+      </div>
+      <div>
+        <textarea id="descriptionInputText" style="width:100%; height: 40vh; background:#000; color:#fff; border:1px solid #555; border-radius:6px; padding:10px; font-size:14px; line-height:1.4;"></textarea>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+        <button onclick="saveDescriptionInput()" style="background: linear-gradient(45deg, #4CAF50, #45a049); color:#fff; border:none; border-radius:4px; padding:8px 14px; cursor:pointer; font-weight:bold;">Save</button>
+      </div>
+    </div>
   </div>
 
   <!-- Scripts -->
@@ -687,7 +777,7 @@
         window.nextMusicTrack = nextMusicTrack;
         window.previousMusicTrack = previousMusicTrack;
         window.loadRadioStation = loadRadioStation;
-window.uploadMusicPlaylist = uploadMusicPlaylist;
+        window.uploadMusicPlaylist = uploadMusicPlaylist;
         window.handleMusicRightClick = handleMusicRightClick;
         window.loadMusicPlaylist = loadMusicPlaylist;
         window.getDefaultPlaylist = getDefaultPlaylist;
@@ -705,6 +795,8 @@ window.uploadMusicPlaylist = uploadMusicPlaylist;
         window.handleVideoUpload = handleVideoUpload;
         window.captureCanvas = captureCanvas;
         window.captureCanvasOnly = captureCanvasOnly;
+        window.updatePanelAnchors = updatePanelAnchors;
+        window.installToolbarAnchorObservers = installToolbarAnchorObservers;
         window.rollDice = rollDice;
         window.showDiceSlider = showDiceSlider;
         window.hideDiceSlider = hideDiceSlider;
@@ -924,6 +1016,8 @@ window.uploadMusicPlaylist = uploadMusicPlaylist;
   
   <!-- Module-based visualization system - Load Second -->
   <script type="module">
+    // Allow overriding news API endpoint via window.NEWS_API_ENDPOINT
+    window.NEWS_API_ENDPOINT = window.NEWS_API_ENDPOINT || 'https://ajanner.onrender.com/api/news';
     import { initializeVisualizer } from './modules/index.js';
     
     // Wait for presets to be loaded
@@ -976,7 +1070,7 @@ window.uploadMusicPlaylist = uploadMusicPlaylist;
           console.log('🎯 Creating news ticker...');
           window.newsTicker = initNewsTicker({
             target: '#news-ticker',
-            endpoint: 'http://localhost:3005/api/news',
+            endpoint: window.NEWS_API_ENDPOINT || '/api/news',
             speed: 60,
             gap: 48,
             pauseOnHover: true,
@@ -1022,6 +1116,85 @@ window.uploadMusicPlaylist = uploadMusicPlaylist;
       }
     };
     
+    // Function to clear news ticker cache and reset to sports
+    window.clearNewsTickerCache = function() {
+        try {
+            localStorage.removeItem('news-ticker-preferences');
+            console.log('🗑️ News ticker cache cleared');
+            
+            // If ticker exists, reset it to sports
+            if (window.newsTicker && typeof window.newsTicker.resetToSports === 'function') {
+                window.newsTicker.resetToSports();
+                console.log('🔄 News ticker reset to Sports');
+            }
+        } catch (error) {
+            console.error('❌ Error clearing news ticker cache:', error);
+        }
+    };
+
+    // Function to refresh visualizer presets
+    window.refreshVisualizerPresets = function() {
+        if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.presets) {
+            console.log('🔄 Refreshing visualizer presets...');
+            if (typeof updatePresetSelect === 'function') {
+                updatePresetSelect();
+                updatePresetInfo();
+                updateCurrentPreset();
+                console.log(`✅ Refreshed presets: ${window.LocalVisualizer.presets.length} available`);
+            }
+        }
+    };
+
+    // Function to reload all presets from scratch
+    window.reloadAllPresets = function() {
+        console.log('🔄 Reloading all presets...');
+        if (typeof window.LocalVisualizer !== 'undefined') {
+            // Force reload of presets
+            window.LocalVisualizer.loadLocalPresets().then(() => {
+                console.log('✅ Presets reloaded');
+                if (typeof updatePresetSelect === 'function') {
+                    updatePresetSelect();
+                    updatePresetInfo();
+                    updateCurrentPreset();
+                }
+            }).catch(err => {
+                console.error('❌ Failed to reload presets:', err);
+            });
+        }
+    };
+
+    // Function to sync news ticker settings panel
+    window.syncNewsTickerSettings = function() {
+        if (window.newsTicker && typeof window.newsTicker.syncSettingsControls === 'function') {
+            console.log('🔄 Syncing news ticker settings panel...');
+            window.newsTicker.syncSettingsControls();
+            console.log(`✅ Settings panel synced. Current service: ${window.newsTicker.currentService}`);
+        } else {
+            console.log('❌ News ticker or sync function not available');
+        }
+    };
+
+    // Function to check visualizer state
+    window.checkVisualizerState = function() {
+        console.log('🔍 Visualizer State Check:');
+        console.log('- LocalVisualizer available:', typeof window.LocalVisualizer !== 'undefined');
+        if (typeof window.LocalVisualizer !== 'undefined') {
+            console.log('- LocalVisualizer running:', window.LocalVisualizer.isRunning);
+            console.log('- LocalVisualizer presets:', window.LocalVisualizer.presets?.length || 0);
+            console.log('- Current preset:', window.LocalVisualizer.currentPreset);
+            console.log('- Preset names:', window.LocalVisualizer.presets?.map(p => p.name) || []);
+        }
+        console.log('- Global state:', window.globalVisualizerState || 'Not defined');
+        console.log('- Preset dropdown options:', document.getElementById('presetSelect')?.options?.length || 0);
+        console.log('- Custom effects available:', window.customEffects ? Object.keys(window.customEffects) : 'None');
+        
+        // Check if render methods are attached
+        if (typeof window.LocalVisualizer !== 'undefined') {
+            const renderMethods = Object.getOwnPropertyNames(window.LocalVisualizer).filter(name => name.startsWith('render'));
+            console.log('- Available render methods:', renderMethods);
+        }
+    };
+
     // Debug function to test ticker visibility
     window.testNewsTicker = function() {
       const tickerElement = document.getElementById('news-ticker');

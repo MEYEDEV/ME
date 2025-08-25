@@ -96,11 +96,11 @@
 })();
 
 // Global variables
-let movementDelayActive = true;
+let movementDelayActive = false;
 let backgroundRotation = 0;
-let speedMultiplier = 1.3;
-let previousSpeed = 1; // Store the previous speed for toggling
-let originalSpeed = 1; // Store the original speed before any pauses
+let speedMultiplier = 0; // Start paused for edit mode
+let previousSpeed = 1.3; // Default resume speed
+let originalSpeed = 1.3; // Default original speed
 let showPauseBorder = false; // Track pause border state (renamed from showCheckeredBorder)
 let ideas = [];
 let selectedIdea = null;
@@ -534,7 +534,13 @@ function clearDrawingVisually() {
       
       if (loadedImages[src] && loadedImages[src].complete) {
         try {
-          ctx.drawImage(loadedImages[src], -a.radius, -a.radius, a.radius * 2, a.radius * 2);
+          const img = loadedImages[src];
+          const maxW = a.radius * 2;
+          const maxH = a.radius * 2;
+          const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+          const drawW = img.naturalWidth * scale;
+          const drawH = img.naturalHeight * scale;
+          ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
         } catch (error) {
           logger.error("❌ Error drawing image for bubble:", a.title, "Error:", error);
           a.image = null;
@@ -672,7 +678,13 @@ function redrawBackgroundAndBubblesNoEffects() {
       
       if (loadedImages[src] && loadedImages[src].complete) {
         try {
-          ctx.drawImage(loadedImages[src], -a.radius, -a.radius, a.radius * 2, a.radius * 2);
+          const img = loadedImages[src];
+          const maxW = a.radius * 2;
+          const maxH = a.radius * 2;
+          const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+          const drawW = img.naturalWidth * scale;
+          const drawH = img.naturalHeight * scale;
+          ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
         } catch (error) {
           logger.error("❌ Error drawing image for bubble:", a.title, "Error:", error);
           a.image = null;
@@ -821,7 +833,13 @@ function clearDrawingOnly() {
       
       if (loadedImages[src] && loadedImages[src].complete) {
         try {
-          ctx.drawImage(loadedImages[src], -a.radius, -a.radius, a.radius * 2, a.radius * 2);
+          const img = loadedImages[src];
+          const maxW = a.radius * 2;
+          const maxH = a.radius * 2;
+          const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+          const drawW = img.naturalWidth * scale;
+          const drawH = img.naturalHeight * scale;
+          ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
         } catch (error) {
           logger.error("❌ Error drawing image for bubble:", a.title, "Error:", error);
           a.image = null;
@@ -1066,7 +1084,13 @@ function startExistingDrawingsFlash() {
         
         if (loadedImages[src] && loadedImages[src].complete) {
           try {
-            ctx.drawImage(loadedImages[src], -a.radius, -a.radius, a.radius * 2, a.radius * 2);
+            const img = loadedImages[src];
+            const maxW = a.radius * 2;
+            const maxH = a.radius * 2;
+            const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+            const drawW = img.naturalWidth * scale;
+            const drawH = img.naturalHeight * scale;
+            ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
           } catch (error) {
             logger.error("❌ Error drawing image for bubble:", { title: a.title, error: error });
             a.image = null;
@@ -1156,25 +1180,9 @@ function startExistingDrawingsFlash() {
         const path = drawingPaths[i];
         const pathColor = path.color || drawingColor;
         const pathWidth = path.width || drawingWidth;
-        
-        // Save context state to isolate opacity effect
         ctx.save();
-        
-        ctx.beginPath();
-        ctx.moveTo(path[0].x, path[0].y);
-        
-        for (let j = 1; j < path.length; j++) {
-          ctx.lineTo(path[j].x, path[j].y);
-        }
-        
-        ctx.strokeStyle = pathColor;
-        ctx.lineWidth = pathWidth;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
         ctx.globalAlpha = flashOpacity; // Apply opacity only to this stroke
-        ctx.stroke();
-        
-        // Restore context state (removes opacity effect)
+        strokeSmoothPath(path, pathColor, pathWidth, flashOpacity);
         ctx.restore();
       }
     }
@@ -1182,19 +1190,7 @@ function startExistingDrawingsFlash() {
     // Redraw the current drawing line on top (if actively drawing)
     if (isDrawing && drawingPath.length > 1) {
       ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(drawingPath[0].x, drawingPath[0].y);
-      
-      for (let i = 1; i < drawingPath.length; i++) {
-        ctx.lineTo(drawingPath[i].x, drawingPath[i].y);
-      }
-      
-      ctx.strokeStyle = drawingColor;
-      ctx.lineWidth = drawingWidth;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.globalAlpha = 1; // Current drawing should always be solid
-      ctx.stroke();
+      strokeSmoothPath(drawingPath, drawingColor, drawingWidth, 1);
       
       ctx.restore();
     }
@@ -1211,6 +1207,21 @@ function stopExistingDrawingsFlash() {
     flashAnimationId = null;
     logger.info('⚡ Existing drawings flash animation stopped');
   }
+}
+
+// Convenience aliases for flashing the current drawn line arrays (distinct from bubble flashing)
+function toggleDrawingsFlash() {
+  toggleDrawingFlash();
+}
+
+function startDrawingsFlash() {
+  if (!existingDrawingsFlash) existingDrawingsFlash = true;
+  startExistingDrawingsFlash();
+}
+
+function stopDrawingsFlash() {
+  if (existingDrawingsFlash) existingDrawingsFlash = false;
+  stopExistingDrawingsFlash();
 }
 
 function redrawAllDrawings() {
@@ -1323,7 +1334,13 @@ function startDrawingGlow() {
         
         if (loadedImages[src] && loadedImages[src].complete) {
           try {
-            ctx.drawImage(loadedImages[src], -a.radius, -a.radius, a.radius * 2, a.radius * 2);
+            const img = loadedImages[src];
+            const maxW = a.radius * 2;
+            const maxH = a.radius * 2;
+            const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+            const drawW = img.naturalWidth * scale;
+            const drawH = img.naturalHeight * scale;
+            ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
           } catch (error) {
             logger.error("❌ Error drawing image for bubble:", { title: a.title, error: error });
             a.image = null;
@@ -1590,7 +1607,13 @@ function smoothLastLine() {
       const src = a.image;
       if (loadedImages[src] && loadedImages[src].complete) {
         try {
-          ctx.drawImage(loadedImages[src], -a.radius, -a.radius, a.radius * 2, a.radius * 2);
+          const img = loadedImages[src];
+          const maxW = a.radius * 2;
+          const maxH = a.radius * 2;
+          const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+          const drawW = img.naturalWidth * scale;
+          const drawH = img.naturalHeight * scale;
+          ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
         } catch (error) {
           logger.error("❌ Error drawing image for bubble:", a.title, "Error:", error);
           a.image = null;
@@ -1648,24 +1671,12 @@ function smoothLastLine() {
     }
   }
   
-  // Redraw all drawing paths including the smoothed one
+  // Redraw all drawing paths including the smoothed one with anti-jagged stroke
   for (let i = 0; i < drawingPaths.length; i++) {
     const path = drawingPaths[i];
     const pathColor = path.color || drawingColor;
     const pathWidth = path.width || drawingWidth;
-    
-    ctx.beginPath();
-    ctx.moveTo(path[0].x, path[0].y);
-    
-    for (let j = 1; j < path.length; j++) {
-      ctx.lineTo(path[j].x, path[j].y);
-    }
-    
-    ctx.strokeStyle = pathColor;
-    ctx.lineWidth = pathWidth;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.stroke();
+    strokeSmoothPath(path, pathColor, pathWidth, 1);
   }
   
   logger.info('✅ Last line smoothed and immediately visible');
@@ -1702,26 +1713,45 @@ function smoothPath(path) {
 function drawPath(path) {
   if (path.length < 2) return;
   
-  ctx.beginPath();
-  ctx.moveTo(path[0].x, path[0].y);
-  
-  for (let i = 1; i < path.length; i++) {
-    ctx.lineTo(path[i].x, path[i].y);
-  }
-  
-  // Use path's stored color and width, or fall back to current
+  // Use a smoother stroke to reduce jagged edges
   const pathColor = path.color || drawingColor;
   const pathWidth = path.width || drawingWidth;
+  strokeSmoothPath(path, pathColor, pathWidth, 1);
+}
+
+// Smoothly stroke a polyline using quadratic curves and safe canvas settings
+function strokeSmoothPath(points, color, width, alpha) {
+  if (!points || points.length < 2) return;
   
-  ctx.strokeStyle = pathColor;
-  ctx.lineWidth = pathWidth;
-  ctx.lineCap = 'round';
+  const pLen = points.length;
+  const path2D = new Path2D();
+  
+  // Build a smooth path using midpoint quadratic curves
+  path2D.moveTo(points[0].x, points[0].y);
+  for (let i = 0; i < pLen - 1; i++) {
+    const current = points[i];
+    const next = points[i + 1];
+    const midX = (current.x + next.x) / 2;
+    const midY = (current.y + next.y) / 2;
+    path2D.quadraticCurveTo(current.x, current.y, midX, midY);
+  }
+  // Ensure we finish at the last point
+  path2D.lineTo(points[pLen - 1].x, points[pLen - 1].y);
+  
+  ctx.save();
+  // Eliminate any unintended glow/shadow artifacts
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+  // Improve joins and avoid spikes
   ctx.lineJoin = 'round';
-  
-  // No flash effect applied to current drawing line
-  
-  ctx.stroke();
-  ctx.globalAlpha = 1;
+  ctx.lineCap = 'round';
+  ctx.miterLimit = 2;
+  // Apply style
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.globalAlpha = alpha != null ? alpha : 1;
+  ctx.stroke(path2D);
+  ctx.restore();
 }
 
 function changeDrawingColor() {
@@ -2186,7 +2216,7 @@ function openAnalysisIframe(type) {
       // Start cooldown for suggestions
       startSuggestionsCooldown();
     } else if (type === 'ideas') {
-      iframe.src = 'https://jannerap.github.io/Trailers/Comedy/';
+      iframe.src = 'https://jannerap.github.io/Trailers/All/';
       
       // Start cooldown for ideas button
       startIdeasCooldown();
@@ -2217,6 +2247,14 @@ function openAnalysisIframe(type) {
     
     // Show the container
     container.style.display = 'block';
+    
+    // Auto-close after 5 minutes (300,000 milliseconds)
+    setTimeout(() => {
+      if (container.style.display === 'block') {
+        closeAnalysisIframe();
+        logger.info('📊 Analysis iframe auto-closed after 5 minutes');
+      }
+    }, 300000);
     
     logger.info('📊 Analysis iframe opened for:', type);
   }
@@ -2257,7 +2295,7 @@ function startSuggestionsCooldown() {
     
     // Update button text with countdown
     const countdownInterval = setInterval(() => {
-      suggestionsButton.textContent = `Suggestions (${timeLeft}s)`;
+      suggestionsButton.textContent = `🎞️Suggestions (${timeLeft}s)`;
       timeLeft--;
       
       if (timeLeft < 0) {
@@ -2286,7 +2324,7 @@ function endSuggestionsCooldown() {
     suggestionsButton.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
     suggestionsButton.style.color = 'white';
     suggestionsButton.disabled = false;
-    suggestionsButton.innerHTML = '🍿 Suggestions:<br>Current: Anime (All)';
+    suggestionsButton.innerHTML = 'Suggestions:<br>Anime (All)🍿';
     
     // Add brief visual indication that cooldown ended
     suggestionsButton.style.boxShadow = '0 0 10px #4CAF50';
@@ -2320,12 +2358,12 @@ function startIdeasCooldown() {
     
     // Show countdown timer
     let countdown = 20;
-    ideasButton.innerHTML = `🧠 Ideas:<br>Cooldown: ${countdown}s`;
+    ideasButton.innerHTML = `🎬 Ideas:<br>Cooldown: ${countdown}s`;
     
     const countdownInterval = setInterval(() => {
       countdown--;
       if (countdown > 0) {
-        ideasButton.innerHTML = `🧠 Ideas:<br>Cooldown: ${countdown}s`;
+        ideasButton.innerHTML = `🎬 Ideas:<br>Cooldown: ${countdown}s`;
       } else {
         clearInterval(countdownInterval);
       }
@@ -2352,7 +2390,7 @@ function endIdeasCooldown() {
     ideasButton.style.background = 'linear-gradient(45deg, #2196F3, #1976D2)';
     ideasButton.style.color = 'white';
     ideasButton.disabled = false;
-    ideasButton.innerHTML = '🧠 Ideas:<br>Current: Comedy (All)';
+    ideasButton.innerHTML = '🎞️ Ideas:<br>FilmTV (All)';
     
     // Flash effect to indicate cooldown ended
     setTimeout(() => {
@@ -2377,13 +2415,43 @@ function endIdeasCooldown() {
 
 
 function resize() {
-  width = canvas.width = window.innerWidth;
-  height = canvas.height = window.innerHeight;
+  // High-DPI rendering for crisper images (Retina/4K etc.)
+  const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+  const cssW = window.innerWidth;
+  const cssH = window.innerHeight;
+
+  // Set CSS size for layout
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+
+  // Set backing store size for resolution
+  canvas.width = Math.floor(cssW * dpr);
+  canvas.height = Math.floor(cssH * dpr);
+
+  // Use logical coordinates in CSS pixels
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // Prefer high quality resampling when scaling images
+  try {
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+  } catch (_) {}
+
+  // App-level logical width/height remain in CSS pixels
+  width = cssW;
+  height = cssH;
 }
 
 // ===== IDEA MANAGEMENT =====
 
 function addIdea(x, y, title = "", description = "", color = randomColor(), textColor = "white", radius = 80) {
+  // On touch devices, default to half-size bubbles for easier layout
+  try {
+    const isTouch = 'ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
+    if (isTouch && radius && typeof radius === 'number') {
+      radius = Math.max(10, Math.round(radius / 2));
+    }
+  } catch (_) {}
   const maxSpeed = 3;
   const bubbleColor = color || randomColor();
   
@@ -2626,6 +2694,39 @@ function showPanel() {
     document.getElementById('uploadImage').title = "Upload custom image";
   }
   
+  // Hook up audio upload UI
+  const uploadAudio = document.getElementById('uploadAudio');
+  if (uploadAudio) {
+    uploadAudio.onchange = handleAudioUpload;
+    if (selectedIdea.audio && selectedIdea.audio.url) {
+      uploadAudio.title = 'Audio attached';
+      const nameEl = document.getElementById('uploadAudioName');
+      if (nameEl) nameEl.textContent = selectedIdea.audio.name || 'Attached audio';
+    } else {
+      uploadAudio.title = 'Attach audio to this bubble';
+      const nameEl = document.getElementById('uploadAudioName');
+      if (nameEl) nameEl.textContent = 'No file selected.';
+    }
+  }
+  
+  // Hook up attachments UI
+  const uploadDocs = document.getElementById('uploadDocs');
+  const attachmentsList = document.getElementById('attachmentsList');
+  if (uploadDocs) {
+    uploadDocs.onchange = handleDocsUpload;
+  }
+  if (!selectedIdea.attachments) {
+    selectedIdea.attachments = [];
+  }
+  if (attachmentsList) {
+    renderAttachmentsList(selectedIdea.attachments);
+  }
+
+  // Hook up URLs UI
+  const urlList = document.getElementById('urlList');
+  if (!selectedIdea.urls) selectedIdea.urls = [];
+  if (urlList) renderUrlList(selectedIdea.urls);
+  
   document.getElementById('panel').style.display = "block";
   resetPanelFade();
 }
@@ -2670,6 +2771,433 @@ function closePanel() {
     panelFadeTimeout = null;
   }
 }
+
+// ===== BUBBLE AUDIO FUNCTIONS =====
+let currentBubbleAudio = null;
+let currentBubbleAudioOwner = null;
+
+function handleAudioUpload(event) {
+  if (!selectedIdea) return;
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  try {
+    if (selectedIdea.audio && selectedIdea.audio.url && selectedIdea.audio.isObjectUrl) {
+      try { URL.revokeObjectURL(selectedIdea.audio.url); } catch (e) {}
+    }
+    const objectUrl = URL.createObjectURL(file);
+    selectedIdea.audio = { url: objectUrl, name: file.name, isObjectUrl: true };
+    const btn = document.getElementById('playBubbleAudioBtn');
+    if (btn) btn.textContent = '▶︎';
+    const nameEl = document.getElementById('uploadAudioName');
+    if (nameEl) nameEl.textContent = file.name;
+    logger.info('🎧 Audio attached to bubble:', file.name);
+  } catch (e) {
+    logger.error('❌ Failed to attach audio:', e && e.message ? e.message : e);
+  } finally {
+    if (event.target) event.target.value = '';
+  }
+}
+
+async function playSelectedBubbleAudio() {
+  if (!selectedIdea || !selectedIdea.audio || !selectedIdea.audio.url) {
+    logger.warn('🎧 No audio attached to the selected bubble');
+    return;
+  }
+  try {
+    if (currentBubbleAudio) {
+      currentBubbleAudio.pause();
+      currentBubbleAudio = null;
+      currentBubbleAudioOwner = null;
+    }
+    // Prefer file from session_uploads if present
+    let urlToPlay = selectedIdea.audio.url;
+    try {
+      const baseName = selectedIdea.audio.name || selectedIdea.audio.originalName || '';
+      if (baseName) {
+        const candidate = `session_uploads/${baseName}`;
+        try {
+          const headRes = await fetch(candidate, { method: 'HEAD' });
+          if (headRes && headRes.ok) {
+            urlToPlay = candidate;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+
+    const audio = new Audio(urlToPlay);
+    audio.volume = 1.0;
+    audio.onended = () => {
+      const btn = document.getElementById('playBubbleAudioBtn');
+      if (btn) btn.textContent = '▶︎';
+      currentBubbleAudio = null;
+      currentBubbleAudioOwner = null;
+    };
+    const btn = document.getElementById('playBubbleAudioBtn');
+    if (btn && btn.textContent === '⏸') {
+      audio.pause();
+      btn.textContent = '▶︎';
+      return;
+    }
+    audio.play().then(() => {
+      currentBubbleAudio = audio;
+      currentBubbleAudioOwner = selectedIdea;
+      // flag owner as pulsing
+      selectedIdea.pulseWithAudio = true;
+      if (btn) btn.textContent = '⏸';
+      logger.info('🎧 Playing bubble audio');
+    }).catch(err => {
+      logger.error('❌ Error playing bubble audio:', err && err.message ? err.message : err);
+    });
+  } catch (e) {
+    logger.error('❌ playSelectedBubbleAudio failed:', e && e.message ? e.message : e);
+  }
+}
+
+function stopSelectedBubbleAudio() {
+  if (currentBubbleAudio) {
+    try { currentBubbleAudio.pause(); } catch (e) {}
+    currentBubbleAudio = null;
+  }
+  if (currentBubbleAudioOwner) {
+    currentBubbleAudioOwner.pulseWithAudio = false;
+    currentBubbleAudioOwner = null;
+  }
+  const btn = document.getElementById('playBubbleAudioBtn');
+  if (btn) btn.textContent = '▶︎';
+  logger.info('🎧 Bubble audio stopped');
+}
+
+function clearSelectedBubbleAudio() {
+  if (!selectedIdea) return;
+  try {
+    if (currentBubbleAudio) {
+      currentBubbleAudio.pause();
+      currentBubbleAudio = null;
+      currentBubbleAudioOwner = null;
+    }
+    if (selectedIdea.audio && selectedIdea.audio.url && selectedIdea.audio.isObjectUrl) {
+      try { URL.revokeObjectURL(selectedIdea.audio.url); } catch (e) {}
+    }
+    selectedIdea.audio = null;
+    const btn = document.getElementById('playBubbleAudioBtn');
+    if (btn) btn.textContent = '▶︎';
+    const uploadAudio = document.getElementById('uploadAudio');
+    if (uploadAudio) uploadAudio.title = 'Attach audio to this bubble';
+    const nameEl = document.getElementById('uploadAudioName');
+    if (nameEl) nameEl.textContent = 'No file selected.';
+    logger.info('🎧 Bubble audio cleared');
+  } catch (e) {
+    logger.error('❌ clearSelectedBubbleAudio failed:', e && e.message ? e.message : e);
+  }
+}
+
+function handleDocsUpload(event) {
+  if (!selectedIdea) return;
+  const files = Array.from(event.target.files || []);
+  if (files.length === 0) return;
+  if (!selectedIdea.attachments) selectedIdea.attachments = [];
+  files.forEach(file => {
+    try {
+      const objectUrl = URL.createObjectURL(file);
+      selectedIdea.attachments.push({
+        name: file.name,
+        type: file.type || guessMimeType(file.name),
+        url: objectUrl,
+        originalName: file.name,
+        isObjectUrl: true
+      });
+    } catch (_) {}
+  });
+  const list = document.getElementById('attachmentsList');
+  if (list) renderAttachmentsList(selectedIdea.attachments);
+  if (event.target) event.target.value = '';
+}
+
+function guessMimeType(name) {
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.doc')) return 'application/msword';
+  if (lower.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (lower.endsWith('.mp4')) return 'video/mp4';
+  if (lower.endsWith('.csv')) return 'text/csv';
+  if (lower.endsWith('.xls')) return 'application/vnd.ms-excel';
+  return 'application/octet-stream';
+}
+
+function renderAttachmentsList(attachments) {
+  const list = document.getElementById('attachmentsList');
+  if (!list) return;
+  list.innerHTML = '';
+  attachments.forEach((att, index) => {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '6px';
+    row.style.fontSize = '12px';
+    row.style.color = '#ddd';
+
+    const name = document.createElement('span');
+    name.textContent = att.name;
+    name.style.flex = '1';
+    name.style.overflow = 'hidden';
+    name.style.whiteSpace = 'nowrap';
+    name.style.textOverflow = 'ellipsis';
+
+    const viewBtn = document.createElement('button');
+    viewBtn.textContent = 'View';
+    viewBtn.title = 'Open attachment';
+    viewBtn.style.background = 'rgba(0,0,0,0.7)';
+    viewBtn.style.color = 'white';
+    viewBtn.style.border = 'none';
+    viewBtn.style.borderRadius = '3px';
+    viewBtn.style.padding = '2px 6px';
+    viewBtn.style.cursor = 'pointer';
+    viewBtn.style.fontSize = '11px';
+    viewBtn.onclick = () => {
+      try {
+        // Handle object URLs that won't persist across sessions by data URL fallback
+        const href = att.url;
+        if (att.type && att.type.startsWith('video/')) {
+          // Open a lightweight inline viewer in a new window/tab
+          const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${att.name}</title></head><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;"><video src="${href}" controls autoplay style="max-width:100vw;max-height:100vh"></video></body></html>`;
+          const win = window.open('', '_blank');
+          if (win && win.document) {
+            win.document.open();
+            win.document.write(html);
+            win.document.close();
+          } else {
+            window.open(href, '_blank');
+          }
+        } else if (att.type === 'text/csv') {
+          // Render CSV in a minimal HTML table for quick view
+          fetch(href).then(r => r.text()).then(text => {
+            const rows = text.split(/\r?\n/).map(l => l.split(','));
+            const table = rows.map(cells => `<tr>${cells.map(c => `<td style="border:1px solid #444;padding:4px;">${c.replace(/</g,'&lt;')}</td>`).join('')}</tr>`).join('');
+            const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${att.name}</title></head><body style="margin:0;background:#111;color:#eee;font-family:monospace;"><div style="padding:8px;overflow:auto;"><table style="border-collapse:collapse;">${table}</table></div></body></html>`;
+            const win = window.open('', '_blank');
+            if (win && win.document) {
+              win.document.open();
+              win.document.write(html);
+              win.document.close();
+            }
+          }).catch(() => window.open(href, '_blank'));
+        } else if (
+          att.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+          att.type === 'application/msword' ||
+          (att.name && (att.name.toLowerCase().endsWith('.docx') || att.name.toLowerCase().endsWith('.doc')))
+        ) {
+          // Try to view .doc/.docx via Google Docs Viewer
+          const encoded = encodeURIComponent(href);
+          const viewerUrl = `https://docs.google.com/gview?embedded=1&url=${encoded}`;
+          window.open(viewerUrl, '_blank');
+        } else {
+          window.open(href, '_blank');
+        }
+      } catch (_) {}
+    };
+
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = '✖';
+    removeBtn.title = 'Remove attachment';
+    removeBtn.style.background = 'rgba(0,0,0,0.7)';
+    removeBtn.style.color = 'white';
+    removeBtn.style.border = 'none';
+    removeBtn.style.borderRadius = '3px';
+    removeBtn.style.padding = '2px 6px';
+    removeBtn.style.cursor = 'pointer';
+    removeBtn.style.fontSize = '11px';
+    removeBtn.onclick = () => {
+      try {
+        const removed = selectedIdea.attachments.splice(index, 1)[0];
+        if (removed && removed.isObjectUrl && removed.url) {
+          try { URL.revokeObjectURL(removed.url); } catch (_) {}
+        }
+        renderAttachmentsList(selectedIdea.attachments);
+      } catch (_) {}
+    };
+
+    row.appendChild(name);
+    row.appendChild(viewBtn);
+    row.appendChild(removeBtn);
+    list.appendChild(row);
+  });
+}
+
+function addBubbleUrl() {
+  if (!selectedIdea) return;
+  const input = document.getElementById('urlInput');
+  if (!input) return;
+  const val = (input.value || '').trim();
+  if (!val) return;
+  try {
+    const url = new URL(val);
+    if (!selectedIdea.urls) selectedIdea.urls = [];
+    selectedIdea.urls.push({ href: url.toString(), title: url.toString() });
+    input.value = '';
+    renderUrlList(selectedIdea.urls);
+  } catch (_) {
+    alert('Please enter a valid URL starting with http(s)://');
+  }
+}
+
+function renderUrlList(urls) {
+  const list = document.getElementById('urlList');
+  if (!list) return;
+  list.innerHTML = '';
+  urls.forEach((link, index) => {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '6px';
+    row.style.fontSize = '12px';
+    row.style.color = '#ddd';
+
+    const name = document.createElement('span');
+    name.textContent = link.title || link.href;
+    name.style.flex = '1';
+    name.style.overflow = 'hidden';
+    name.style.whiteSpace = 'nowrap';
+    name.style.textOverflow = 'ellipsis';
+
+    const viewBtn = document.createElement('button');
+    viewBtn.textContent = 'View';
+    viewBtn.title = 'Open URL in overlay';
+    viewBtn.style.background = 'rgba(0,0,0,0.7)';
+    viewBtn.style.color = 'white';
+    viewBtn.style.border = 'none';
+    viewBtn.style.borderRadius = '3px';
+    viewBtn.style.padding = '2px 6px';
+    viewBtn.style.cursor = 'pointer';
+    viewBtn.style.fontSize = '11px';
+    viewBtn.onclick = () => openUrlOverlay(link.href);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = '✖';
+    removeBtn.title = 'Remove URL';
+    removeBtn.style.background = 'rgba(0,0,0,0.7)';
+    removeBtn.style.color = 'white';
+    removeBtn.style.border = 'none';
+    removeBtn.style.borderRadius = '3px';
+    removeBtn.style.padding = '2px 6px';
+    removeBtn.style.cursor = 'pointer';
+    removeBtn.style.fontSize = '11px';
+    removeBtn.onclick = () => {
+      try {
+        selectedIdea.urls.splice(index, 1);
+        renderUrlList(selectedIdea.urls);
+      } catch (_) {}
+    };
+
+    row.appendChild(name);
+    row.appendChild(viewBtn);
+    row.appendChild(removeBtn);
+    list.appendChild(row);
+  });
+}
+
+function openUrlOverlay(href) {
+  // Create a simple fullscreen iframe overlay with close
+  const overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.width = '100vw';
+  overlay.style.height = '100vh';
+  overlay.style.background = 'rgba(0,0,0,0.85)';
+  overlay.style.zIndex = '70002';
+  overlay.style.display = 'flex';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+
+  const frame = document.createElement('iframe');
+  frame.src = href;
+  frame.allow = 'autoplay; fullscreen';
+  frame.style.width = '90vw';
+  frame.style.height = '80vh';
+  frame.style.border = '2px solid darkgreen';
+  frame.style.borderRadius = '8px';
+  frame.style.background = '#000';
+
+  const close = document.createElement('button');
+  close.textContent = 'Close';
+  close.title = 'Close';
+  close.style.position = 'absolute';
+  close.style.top = '16px';
+  close.style.right = '16px';
+  close.style.background = 'rgba(0,0,0,0.7)';
+  close.style.color = 'white';
+  close.style.border = '2px solid #4CAF50';
+  close.style.borderRadius = '6px';
+  close.style.padding = '6px 10px';
+  close.style.cursor = 'pointer';
+  // Cleanup helper
+  const cleanup = () => {
+    try { document.removeEventListener('keydown', escHandler); } catch (_) {}
+    if (overlay && overlay.parentNode) {
+      try { document.body.removeChild(overlay); } catch (_) {}
+    }
+  };
+  const escHandler = (e) => {
+    if (e.key === 'Escape') cleanup();
+  };
+  close.onclick = cleanup;
+
+  // Listen for ESC to close
+  document.addEventListener('keydown', escHandler);
+
+  // Blocked embedding helper UI (below iframe)
+  const blockedWrap = document.createElement('div');
+  blockedWrap.style.marginTop = '12px';
+  blockedWrap.style.display = 'none';
+  blockedWrap.style.textAlign = 'center';
+  blockedWrap.style.position = 'absolute';
+  blockedWrap.style.bottom = '5vh';
+  blockedWrap.style.left = '50%';
+  blockedWrap.style.transform = 'translateX(-50%)';
+  const openBtn = document.createElement('button');
+  openBtn.textContent = 'Open Link in New Tab';
+  openBtn.style.background = 'rgba(0,0,0,0.7)';
+  openBtn.style.color = 'white';
+  openBtn.style.border = '2px solid #4CAF50';
+  openBtn.style.borderRadius = '6px';
+  openBtn.style.padding = '6px 10px';
+  openBtn.style.cursor = 'pointer';
+  openBtn.onclick = () => window.open(href, '_blank');
+  blockedWrap.appendChild(openBtn);
+
+  overlay.appendChild(frame);
+  overlay.appendChild(close);
+  overlay.appendChild(blockedWrap);
+  document.body.appendChild(overlay);
+
+  // Detect frame-ancestors/X-Frame-Options blocks and show fallback
+  let loaded = false;
+  frame.onload = () => {
+    loaded = true;
+    try {
+      // Some blocked pages still fire onload but deny DOM access
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      if (!doc || !doc.body) {
+        blockedWrap.style.display = 'block';
+      } else if ((doc.body.innerHTML || '').trim().length === 0) {
+        blockedWrap.style.display = 'block';
+      }
+    } catch (e) {
+      blockedWrap.style.display = 'block';
+    }
+  };
+  setTimeout(() => {
+    if (!loaded) {
+      blockedWrap.style.display = 'block';
+    }
+  }, 1500);
+}
+
+// Expose add method for inline onclick
+window.addBubbleUrl = addBubbleUrl;
 
 function minimizePanel() {
   const panel = document.getElementById('panel');
@@ -3134,12 +3662,70 @@ function clearUploadedImage() {
 
 // ===== SAVE/LOAD SYSTEM =====
 
-function saveIdeas() {
-  const dataToSave = ideas.map(idea => ({ ...idea }));
-  const blob = new Blob([JSON.stringify(dataToSave, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
+async function saveIdeas() {
+  // Helper to convert a resource URL (including blob:) to data URL
+  async function toDataUrl(resourceUrl) {
+    try {
+      const res = await fetch(resourceUrl);
+      if (!res.ok) throw new Error('fetch failed');
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  const dataToSave = await Promise.all(ideas.map(async (idea) => {
+    const copy = { ...idea };
+    // Persist attachments; embed images and CSV as data URLs for portability
+    if (Array.isArray(copy.attachments)) {
+      const out = [];
+      for (const att of copy.attachments) {
+        const item = {
+          name: att.name,
+          type: att.type,
+          url: att.url,
+          isObjectUrl: !!att.isObjectUrl,
+          originalName: att.originalName || att.name || ''
+        };
+        if (att && typeof att.type === 'string') {
+          if (att.type.startsWith('image/') || att.type === 'text/csv') {
+            const dataUrl = await toDataUrl(att.url);
+            if (dataUrl) {
+              item.dataUrl = dataUrl;
+              // Prefer embedded data URL to ensure post-load viewing
+              item.url = dataUrl;
+              item.isObjectUrl = false;
+            }
+          }
+        }
+        out.push(item);
+      }
+      copy.attachments = out;
+    }
+    // Persist URLs list
+    if (Array.isArray(copy.urls)) {
+      copy.urls = copy.urls.map(u => ({ href: u.href, title: u.title || u.href }));
+    }
+    // Audio: keep url and a flag (do not embed to keep JSON smaller)
+    if (copy.audio) {
+      copy.audio = {
+        url: copy.audio.url,
+        name: copy.audio.name,
+        isObjectUrl: !!copy.audio.isObjectUrl
+      };
+    }
+    return copy;
+  }));
+
+  const blob = new Blob([JSON.stringify(dataToSave, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = "ideas.json";
+  a.download = 'ideas.json';
   a.click();
   logger.info('💾 Ideas saved to file:', dataToSave.length, 'ideas exported');
 }
@@ -3428,9 +4014,25 @@ function draw() {
           const distanceSquared = distanceX * distanceX + distanceY * distanceY;
           
           if (distanceSquared < ballRadius * ballRadius) {
-            // Check cooldown - only score if not in cooldown
+            // Determine which side was hit (left/right/top/bottom)
+            const distToLeft = Math.abs(ballCenterX - goalLeft);
+            const distToRight = Math.abs(goalRight - ballCenterX);
+            const distToTop = Math.abs(ballCenterY - goalTop);
+            const distToBottom = Math.abs(goalBottom - ballCenterY);
+            let hitSide = 'left';
+            let minSideDist = distToLeft;
+            if (distToRight < minSideDist) { minSideDist = distToRight; hitSide = 'right'; }
+            if (distToTop < minSideDist) { minSideDist = distToTop; hitSide = 'top'; }
+            if (distToBottom < minSideDist) { minSideDist = distToBottom; hitSide = 'bottom'; }
+
+            // Initialize goal active side if missing (vertical -> left, horizontal -> top)
+            if (!goal.activeSide) {
+              goal.activeSide = (finalGoalHeight >= finalGoalWidth) ? 'left' : 'top';
+            }
+
+            // Check cooldown and active scoring side
             const now = Date.now();
-            if (now > goal.goalCooldown) {
+            if (now > goal.goalCooldown && hitSide === goal.activeSide) {
               // GOAL SCORED!
               goal.goals += 1;
               goal.flashUntil = now + 500; // Flash for 500ms
@@ -3439,12 +4041,20 @@ function draw() {
               logger.info(`⚽ GOAL! Ball hit Goal. Total goals: ${goal.goals}`);
             }
             
-            // Ball bounces off goal maintaining velocity (regardless of cooldown)
-            // Reverse ball direction based on collision side
-            if (Math.abs(distanceX) > Math.abs(distanceY)) {
-              a.vx *= -1; // Hit side of goal
-            } else {
-              a.vy *= -1; // Hit top/bottom of goal
+            // Reflect and separate to prevent sticking
+            const epsilon = 1;
+            if (hitSide === 'left') {
+              a.x = goalLeft - (ballRadius + epsilon);
+              a.vx = Math.abs(a.vx) * -1; // ensure moving left->right flips
+            } else if (hitSide === 'right') {
+              a.x = goalRight + (ballRadius + epsilon);
+              a.vx = Math.abs(a.vx);
+            } else if (hitSide === 'top') {
+              a.y = goalTop - (ballRadius + epsilon);
+              a.vy = Math.abs(a.vy) * -1;
+            } else { // bottom
+              a.y = goalBottom + (ballRadius + epsilon);
+              a.vy = Math.abs(a.vy);
             }
             
             // Ensure ball maintains good velocity after goal
@@ -3453,8 +4063,14 @@ function draw() {
               // Give ball a good velocity if it was too slow
               const normalizedVx = a.vx / currentSpeed;
               const normalizedVy = a.vy / currentSpeed;
-              a.vx = normalizedVx * 2.0;
-              a.vy = normalizedVy * 2.0;
+              if (isFinite(normalizedVx) && isFinite(normalizedVy)) {
+                a.vx = normalizedVx * 2.0;
+                a.vy = normalizedVy * 2.0;
+              } else {
+                // fallback nudge away from goal center
+                a.vx = (hitSide === 'left' ? -2 : hitSide === 'right' ? 2 : 0);
+                a.vy = (hitSide === 'top' ? -2 : hitSide === 'bottom' ? 2 : 0);
+              }
             }
           }
         }
@@ -3497,9 +4113,24 @@ function draw() {
           const distanceSquared = distanceX * distanceX + distanceY * distanceY;
           
           if (distanceSquared < puckRadius * puckRadius) {
-            // Check cooldown - only score if not in cooldown
+            // Determine hit side
+            const distToLeft = Math.abs(puckCenterX - goalLeft);
+            const distToRight = Math.abs(goalRight - puckCenterX);
+            const distToTop = Math.abs(puckCenterY - goalTop);
+            const distToBottom = Math.abs(goalBottom - puckCenterY);
+            let hitSide = 'left';
+            let minSideDist = distToLeft;
+            if (distToRight < minSideDist) { minSideDist = distToRight; hitSide = 'right'; }
+            if (distToTop < minSideDist) { minSideDist = distToTop; hitSide = 'top'; }
+            if (distToBottom < minSideDist) { minSideDist = distToBottom; hitSide = 'bottom'; }
+
+            if (!goal.activeSide) {
+              goal.activeSide = (finalGoalHeight >= finalGoalWidth) ? 'left' : 'top';
+            }
+
+            // Check cooldown and scoring side
             const now = Date.now();
-            if (now > goal.goalCooldown) {
+            if (now > goal.goalCooldown && hitSide === goal.activeSide) {
               // GOAL SCORED!
               goal.goals += 1;
               goal.flashUntil = now + 500; // Flash for 500ms
@@ -3508,12 +4139,20 @@ function draw() {
               logger.info(`🏒 GOAL! Puck hit Goal. Total goals: ${goal.goals}`);
             }
             
-            // Puck bounces off goal maintaining velocity (regardless of cooldown)
-            // Reverse puck direction based on collision side
-            if (Math.abs(distanceX) > Math.abs(distanceY)) {
-              a.vx *= -1; // Hit side of goal
+            // Reflect and separate
+            const epsilon = 1;
+            if (hitSide === 'left') {
+              a.x = goalLeft - (puckRadius + epsilon);
+              a.vx = Math.abs(a.vx) * -1;
+            } else if (hitSide === 'right') {
+              a.x = goalRight + (puckRadius + epsilon);
+              a.vx = Math.abs(a.vx);
+            } else if (hitSide === 'top') {
+              a.y = goalTop - (puckRadius + epsilon);
+              a.vy = Math.abs(a.vy) * -1;
             } else {
-              a.vy *= -1; // Hit top/bottom of goal
+              a.y = goalBottom + (puckRadius + epsilon);
+              a.vy = Math.abs(a.vy);
             }
             
             // Ensure puck maintains good velocity after goal
@@ -3522,8 +4161,13 @@ function draw() {
               // Give puck a good velocity if it was too slow
               const normalizedVx = a.vx / currentSpeed;
               const normalizedVy = a.vy / currentSpeed;
-              a.vx = normalizedVx * 2.0;
-              a.vy = normalizedVy * 2.0;
+              if (isFinite(normalizedVx) && isFinite(normalizedVy)) {
+                a.vx = normalizedVx * 2.0;
+                a.vy = normalizedVy * 2.0;
+              } else {
+                a.vx = (hitSide === 'left' ? -2 : hitSide === 'right' ? 2 : 0);
+                a.vy = (hitSide === 'top' ? -2 : hitSide === 'bottom' ? 2 : 0);
+              }
             }
           }
         }
@@ -3696,6 +4340,52 @@ function draw() {
       const heightRatio = a.heightRatio || 1.0;
       drawShape(ctx, shape, 0, 0, a.radius, heightRatio, 0);
       
+      // Bubble-scoped audio pulse overlay (owner only)
+      try {
+        if (a.pulseWithAudio === true && currentBubbleAudioOwner === a) {
+          const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 180 + i * 0.45);
+          const inflate = 1 + 0.15 * pulse; // enlarge pulse radius ~15%
+          ctx.save();
+          // Red tint fill overlay
+          ctx.globalAlpha = 0.18 + 0.25 * pulse;
+          ctx.fillStyle = 'red';
+          ctx.beginPath();
+          if (a.shape === 'goal') {
+            const goalWidth = a.radius * 0.5;
+            const goalHeight = a.radius;
+            let w = goalWidth * inflate;
+            let h = goalHeight * inflate;
+            if (a.rotation === 89 || a.rotation === 271 || a.rotation === 90 || a.rotation === 270) {
+              [w, h] = [h, w];
+            }
+            ctx.rect(-w / 2, -h / 2, w, h);
+          } else {
+            ctx.arc(0, 0, a.radius * inflate, 0, Math.PI * 2);
+          }
+          ctx.fill();
+          
+          // Red outline
+          ctx.globalAlpha = 0.25 + 0.35 * pulse;
+          ctx.lineWidth = 2 + 2.5 * pulse;
+          ctx.strokeStyle = 'red';
+          ctx.beginPath();
+          if (a.shape === 'goal') {
+            const goalWidth = a.radius * 0.5;
+            const goalHeight = a.radius;
+            let w = goalWidth * inflate;
+            let h = goalHeight * inflate;
+            if (a.rotation === 89 || a.rotation === 271 || a.rotation === 90 || a.rotation === 270) {
+              [w, h] = [h, w];
+            }
+            ctx.rect(-w / 2, -h / 2, w, h);
+          } else {
+            ctx.arc(0, 0, a.radius * inflate, 0, Math.PI * 2);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+      } catch (e) {}
+
       // Draw capture border for striker in capture mode
       if (a.shape === 'striker' && strikerCaptureMode && a === selectedIdea) {
         ctx.save();
@@ -3753,15 +4443,25 @@ function draw() {
         ctx.stroke();
         ctx.restore();
       }
-      // Remove clipping that was creating invisible barriers
-      // ctx.clip(); // This was preventing collisions with Goals
+      // Remove circular clipping around goals to avoid circular barrier behavior
 
     if (a.image) {
       const src = a.image;
       
       if (loadedImages[src] && loadedImages[src].complete) {
         try {
-          ctx.drawImage(loadedImages[src], -a.radius, -a.radius, a.radius * 2, a.radius * 2);
+          const img = loadedImages[src];
+          // Preserve the original aspect ratio of the uploaded PNG/JPG
+          const maxW = a.radius * 2;
+          const maxH = a.radius * 2;
+          // Scale to fit within the bubble diameter WITHOUT stretching
+          const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+          const drawW = img.naturalWidth * scale;
+          const drawH = img.naturalHeight * scale;
+          // Center the image within the bubble area
+          const drawX = -drawW / 2;
+          const drawY = -drawH / 2;
+          ctx.drawImage(img, drawX, drawY, drawW, drawH);
         } catch (error) {
           logger.error("❌ Error drawing image for bubble:", { title: a.title, error: error });
           a.image = null;
@@ -4103,11 +4803,8 @@ function init() {
   resize();
   window.addEventListener("resize", resize);
   
-  // Set up movement delay
-  movementDelayActive = true;
-  setTimeout(() => {
-    movementDelayActive = false;
-  }, 10000);
+  // Start in edit mode (no pre-start delay)
+  movementDelayActive = false;
   
   // Load default theme and first preset
   switchTheme('default');
@@ -4151,24 +4848,68 @@ function setupEventListeners() {
       const dy = y - idea.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < idea.radius) {
-        // Left click on bubble - select it and show panel if it's not already open
         selectedIdea = idea;
-        
-        // Check if panel is open
         const panel = document.getElementById('panel');
         if (panel.style.display === 'block') {
-          // Panel is open - update it with the new bubble's information
           showPanel();
         }
-        // If panel is closed, just select the bubble without showing panel
-        
         clicked = true;
         break;
       }
     }
-    
     if (!clicked) addIdea(x, y);
   });
+
+  // Touch to create/select bubbles
+  canvas.addEventListener("touchstart", (e) => {
+    if (isDragging) return;
+    if (!e.touches || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    // Double-tap detection
+    const now = Date.now();
+    window.__lastTapTime = window.__lastTapTime || 0;
+    const isDoubleTap = (now - window.__lastTapTime) < 350; // 350ms window
+    window.__lastTapTime = now;
+
+    // Hit test
+    let tappedBubble = null;
+    for (let idea of ideas) {
+      const dx = x - idea.x;
+      const dy = y - idea.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < idea.radius) { tappedBubble = idea; break; }
+    }
+
+    // If currently in drawing mode: only allow double-tap to toggle out/in
+    if (isDrawingMode) {
+      if (isDoubleTap) {
+        toggleDrawingMode();
+      }
+      e.preventDefault();
+      return;
+    }
+
+    // Not in drawing mode (bubble mode)
+    if (tappedBubble) {
+      selectedIdea = tappedBubble;
+      if (isDoubleTap) {
+        showPanel();
+      }
+    } else {
+      if (isDoubleTap) {
+        // Double-tap empty area switches to drawing mode (no bubble creation)
+        toggleDrawingMode();
+      } else {
+        // Single tap empty area creates a bubble
+        addIdea(x, y);
+      }
+    }
+    e.preventDefault();
+  }, { passive: false });
 
   // Right-click behavior
   canvas.addEventListener("contextmenu", (e) => {
@@ -4308,8 +5049,158 @@ function setupEventListeners() {
 
   canvas.addEventListener("mouseup", () => {
     isDragging = false;
+    // When user releases a dragged bubble while a timeline exists (in/out set), record an auto keyframe
+    try {
+      if (typeof window.AnimationState !== 'undefined' && window.AnimationState.data) {
+        const anim = window.AnimationState.data;
+        const hasInOut = typeof anim.inPoint === 'number' && typeof anim.outPoint === 'number' && anim.outPoint > anim.inPoint;
+        if (hasInOut) {
+          // Ensure we have base keyframes
+          if (!anim.keyframes || anim.keyframes.length < 2) {
+            const durationSeconds = (anim.duration || 10000) / 1000;
+            const basePositions = typeof window.captureBubblePositions === 'function' ? window.captureBubblePositions() : [];
+            anim.keyframes = [
+              { time: 0, positions: basePositions },
+              { time: durationSeconds, positions: basePositions }
+            ];
+          }
+          // Determine current timeline time (from media slider if available)
+          const slider = document.getElementById('mediaPlaybackSlider');
+          const durationSeconds = (anim.duration || 10000) / 1000;
+          let currentTime = 0;
+          if (slider) {
+            const progress = Math.max(0, Math.min(1, parseFloat(slider.value) || 0));
+            currentTime = progress * durationSeconds;
+          }
+          // Clamp to (inPoint, outPoint)
+          const epsilon = 0.01;
+          currentTime = Math.max(anim.inPoint + epsilon, Math.min(anim.outPoint - epsilon, currentTime));
+          // Capture positions and insert/update keyframe at this time
+          if (typeof window.captureBubblePositions === 'function') {
+            const positions = window.captureBubblePositions();
+            // Find existing keyframe at this time (within small tolerance)
+            const existingIdx = anim.keyframes.findIndex(kf => Math.abs(kf.time - currentTime) < 0.001);
+            if (existingIdx !== -1) {
+              anim.keyframes[existingIdx].positions = positions;
+              anim.keyframes[existingIdx].time = currentTime;
+            } else {
+              anim.keyframes.push({ time: currentTime, positions });
+            }
+            // Keep sorted
+            anim.keyframes.sort((a, b) => a.time - b.time);
+            // Reflect marker
+            if (typeof window.addTimelineMarker === 'function') {
+              window.addTimelineMarker('keyframe', currentTime);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Non-fatal if animation system isn't present
+    }
     draggedIdea = null;
   });
+
+  // Touch drag support for mobile
+  canvas.addEventListener("touchstart", (e) => {
+    if (isDrawingMode) return;
+    if (!e.touches || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    for (let idea of ideas) {
+      const dx = x - idea.x;
+      const dy = y - idea.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < idea.radius) {
+        isDragging = true;
+        draggedIdea = idea;
+        dragOffsetX = dx;
+        dragOffsetY = dy;
+        selectedIdea = idea;
+        e.preventDefault();
+        break;
+      }
+    }
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", (e) => {
+    if (!isDragging || !draggedIdea) return;
+    if (!e.touches || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    draggedIdea.x = x - dragOffsetX;
+    draggedIdea.y = y - dragOffsetY;
+    if (draggedIdea.x - draggedIdea.radius < border) {
+      draggedIdea.x = border + draggedIdea.radius;
+    }
+    if (draggedIdea.x + draggedIdea.radius > width - border) {
+      draggedIdea.x = width - border - draggedIdea.radius;
+    }
+    if (draggedIdea.y - draggedIdea.radius < border + 50) {
+      draggedIdea.y = border + 50 + draggedIdea.radius;
+    }
+    if (draggedIdea.y + draggedIdea.radius > height - border) {
+      draggedIdea.y = height - border - draggedIdea.radius;
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  const endTouchDrag = () => {
+    isDragging = false;
+    try {
+      if (typeof window.AnimationState !== 'undefined' && window.AnimationState.data) {
+        const anim = window.AnimationState.data;
+        const hasInOut = typeof anim.inPoint === 'number' && typeof anim.outPoint === 'number' && anim.outPoint > anim.inPoint;
+        if (hasInOut) {
+          if (!anim.keyframes || anim.keyframes.length < 2) {
+            const durationSeconds = (anim.duration || 10000) / 1000;
+            const basePositions = typeof window.captureBubblePositions === 'function' ? window.captureBubblePositions() : [];
+            anim.keyframes = [
+              { time: 0, positions: basePositions },
+              { time: durationSeconds, positions: basePositions }
+            ];
+          }
+          const slider = document.getElementById('mediaPlaybackSlider');
+          const durationSeconds = (anim.duration || 10000) / 1000;
+          let currentTime = 0;
+          if (slider) {
+            const progress = Math.max(0, Math.min(1, parseFloat(slider.value) || 0));
+            currentTime = progress * durationSeconds;
+          }
+          const epsilon = 0.01;
+          currentTime = Math.max(anim.inPoint + epsilon, Math.min(anim.outPoint - epsilon, currentTime));
+          if (typeof window.captureBubblePositions === 'function') {
+            const positions = window.captureBubblePositions();
+            const existingIdx = anim.keyframes.findIndex(kf => Math.abs(kf.time - currentTime) < 0.001);
+            if (existingIdx !== -1) {
+              anim.keyframes[existingIdx].positions = positions;
+              anim.keyframes[existingIdx].time = currentTime;
+            } else {
+              anim.keyframes.push({ time: currentTime, positions });
+            }
+            anim.keyframes.sort((a, b) => a.time - b.time);
+            if (typeof window.addTimelineMarker === 'function') {
+              window.addTimelineMarker('keyframe', currentTime);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    draggedIdea = null;
+  };
+
+  canvas.addEventListener("touchend", (e) => {
+    endTouchDrag();
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener("touchcancel", (e) => {
+    endTouchDrag();
+    e.preventDefault();
+  }, { passive: false });
 
   // Gamepad controls
   let gamepadConnected = false;
@@ -4493,7 +5384,13 @@ function setupEventListeners() {
     // EXCEPT for ESC key which should always work to close panels
     const panel = document.getElementById('panel');
     if (panel && panel.style.display === 'block' && e.key !== 'Escape') {
-      return; // Allow normal text input in panel, but let ESC through
+      // Allow 'B' to toggle the bubble panel when not typing in inputs/textareas
+      const targetTag = e.target && e.target.tagName ? e.target.tagName.toUpperCase() : '';
+      const isTypingTarget = targetTag === 'INPUT' || targetTag === 'TEXTAREA' || (e.target && e.target.isContentEditable);
+      const isBKey = e.key === 'b' || e.key === 'B';
+      if (!(isBKey && !isTypingTarget)) {
+        return; // Allow normal text input in panel, but let ESC and non-typing 'B' through
+      }
     }
     
     // Handle general shortcuts that work without selected bubble
@@ -4714,14 +5611,44 @@ function setupEventListeners() {
           flashUntil: idea.flashUntil || 0,
           // Ball properties
           ballVelocityBoost: idea.ballVelocityBoost || 0,
-          ballVelocityDecay: idea.ballVelocityDecay || 0
+          ballVelocityDecay: idea.ballVelocityDecay || 0,
+          // Ensure attachments array exists and restore minimal metadata
+          attachments: Array.isArray(idea.attachments) ? idea.attachments.map(att => ({
+            name: att.name,
+            type: att.type,
+            url: att.url || '',
+            isObjectUrl: !!att.isObjectUrl,
+            originalName: att.originalName || att.name || ''
+          })) : [],
+          // Restore URLs list if present
+          urls: Array.isArray(idea.urls) ? idea.urls.map(u => ({ href: u.href, title: u.title || u.href })) : [],
+          // Restore audio stub if present
+          audio: idea.audio ? {
+            url: idea.audio.url || '',
+            name: idea.audio.name || '',
+            isObjectUrl: !!idea.audio.isObjectUrl
+          } : null
         }));
 
-        logger.info(`📋 Loaded ${loaded.length} ideas from JSON file:`, file.name);
-        movementDelayActive = true;
-        setTimeout(() => {
-          movementDelayActive = false;
-        }, 10000);
+        // After loading, prefer embedded data URLs if present; else try session folder
+        (async () => {
+          try {
+            for (const idea of ideas) {
+              if (Array.isArray(idea.attachments)) {
+                for (const att of idea.attachments) {
+                  if (att.dataUrl && att.dataUrl.startsWith('data:')) {
+                    att.url = att.dataUrl;
+                    att.isObjectUrl = false;
+                  }
+                }
+              }
+            }
+          } catch (_) {}
+          await resolveAllExternalAssets(ideas);
+          logger.info(`📋 Loaded ${loaded.length} ideas from JSON file:`, file.name);
+        })();
+        // Remove pre-start slowdown after loading JSON
+        movementDelayActive = false;
       } catch (err) {
         logger.error("❌ Invalid JSON file:", err.message);
       }
@@ -4736,6 +5663,11 @@ function setupEventListeners() {
     panel.addEventListener('click', resetPanelTimer);
     panel.addEventListener('input', resetPanelTimer);
     panel.addEventListener('change', resetPanelTimer);
+  }
+
+  // Attach resize toggle handler
+  if (typeof resizePanelToggle === 'function') {
+    // no-op, exposed later
   }
   
   // Panel timeout checkbox
@@ -4804,11 +5736,40 @@ function setupEventListeners() {
     });
   }
   
-  // Drawing mode event listeners (higher priority)
+  // Drawing mode event listeners (mouse)
   canvas.addEventListener('mousedown', startDrawing, true);
   canvas.addEventListener('mousemove', drawLine, true);
   canvas.addEventListener('mouseup', stopDrawing, true);
   canvas.addEventListener('mouseleave', stopDrawing, true);
+
+  // Touch support for drawing
+  canvas.addEventListener('touchstart', (e) => {
+    if (!isDrawingMode) return;
+    if (!e.touches || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    const fakeEvent = { clientX: touch.clientX, clientY: touch.clientY, preventDefault: ()=>{}, stopPropagation: ()=>{} };
+    startDrawing(fakeEvent);
+    e.preventDefault();
+  }, { passive: false, capture: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (!isDrawingMode || !e.touches || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    const fakeEvent = { clientX: touch.clientX, clientY: touch.clientY, preventDefault: ()=>{}, stopPropagation: ()=>{} };
+    drawLine(fakeEvent);
+    e.preventDefault();
+  }, { passive: false, capture: true });
+
+  canvas.addEventListener('touchend', (e) => {
+    if (!isDrawingMode) return;
+    stopDrawing();
+    e.preventDefault();
+  }, { passive: false, capture: true });
+  canvas.addEventListener('touchcancel', (e) => {
+    if (!isDrawingMode) return;
+    stopDrawing();
+    e.preventDefault();
+  }, { passive: false, capture: true });
   
   // Keyboard shortcuts for drawing
   document.addEventListener('keydown', (e) => {
@@ -4847,8 +5808,8 @@ function setupEventListeners() {
       case 'f':
       case 'F':
         if (isDrawingMode) {
-          // DISABLED: toggleExistingDrawingsFlash();
-          logger.warn('⚠️ Flash function temporarily disabled to prevent bubble interference');
+          // Toggle flashing of current drawn lines (not bubbles)
+          toggleDrawingFlash();
           e.preventDefault(); // Prevent browser default behavior
         }
         break;
@@ -4864,6 +5825,147 @@ function setupEventListeners() {
   });
 }
 
+// ===== DESCRIPTION INPUT MODAL HANDLERS =====
+function openDescriptionInput() {
+  try {
+    const modal = document.getElementById('descriptionInputModal');
+    const textarea = document.getElementById('descriptionInputText');
+    const panelDesc = document.getElementById('description');
+    if (!modal || !textarea || !panelDesc) return;
+    // Seed with current description (from selected idea if present, else from panel)
+    const current = (typeof selectedIdea !== 'undefined' && selectedIdea && typeof selectedIdea.description === 'string')
+      ? selectedIdea.description
+      : panelDesc.value || '';
+    textarea.value = current;
+    modal.style.display = 'flex';
+  } catch (_) {}
+}
+
+function closeDescriptionInput() {
+  const modal = document.getElementById('descriptionInputModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function saveDescriptionInput() {
+  const textarea = document.getElementById('descriptionInputText');
+  const panelDesc = document.getElementById('description');
+  if (!textarea || !panelDesc) return;
+  const newText = textarea.value;
+  // Update selected idea if present
+  if (typeof selectedIdea !== 'undefined' && selectedIdea) {
+    selectedIdea.description = newText;
+  }
+  // Sync panel description field
+  panelDesc.value = newText;
+  closeDescriptionInput();
+}
+
+function resizePanelToggle() {
+  const panel = document.getElementById('panel');
+  if (!panel) return;
+  if (panel.style.width === '300px' || !panel.style.width) {
+    panel.style.width = '500px';
+    panel.style.height = '70vh';
+  } else {
+    panel.style.width = '300px';
+    panel.style.height = 'auto';
+  }
+}
+
+window.resizePanelToggle = resizePanelToggle;
+
+// Attempt to re-resolve attachments/audio URLs from a local session folder
+async function resolveAllExternalAssets(ideasArr) {
+  try {
+    const sessionFolder = 'session_uploads/'; // configurable base folder under project root
+    for (const idea of ideasArr) {
+      // Resolve attachments
+      if (Array.isArray(idea.attachments)) {
+        for (const att of idea.attachments) {
+          if (att && att.url && att.isObjectUrl !== true) {
+            // If URL already usable (http(s) or data:), skip
+            if (/^(https?:|data:)/i.test(att.url)) continue;
+            // Try session folder by originalName first, fallback to url string
+            const candidate = sessionFolder + (att.originalName || att.name || att.url);
+            try {
+              const res = await fetch(candidate, { method: 'HEAD' });
+              if (res.ok) {
+                att.url = candidate;
+                att.isObjectUrl = false;
+              }
+            } catch (_) {}
+          }
+        }
+      }
+      // Resolve audio
+      if (idea.audio && idea.audio.url && idea.audio.isObjectUrl !== true) {
+        if (!/^(https?:|data:)/i.test(idea.audio.url)) {
+          const candidate = sessionFolder + (idea.audio.name || 'audio');
+          try {
+            const res = await fetch(candidate, { method: 'HEAD' });
+            if (res.ok) {
+              idea.audio.url = candidate;
+              idea.audio.isObjectUrl = false;
+            }
+          } catch (_) {}
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn('⚠️ resolveAllExternalAssets encountered an issue:', e && e.message ? e.message : e);
+  }
+}
+
+// Dynamically anchor key panels just below the toolbar bottom edge
+function updatePanelAnchors() {
+  try {
+    const toolbar = document.getElementById('toolbar');
+    if (!toolbar) return;
+    const rect = toolbar.getBoundingClientRect();
+    // For fixed toolbar and fixed panels, use viewport coordinates only
+    // 20px gap below toolbar
+    const topPx = Math.max(0, Math.round(rect.bottom + 20));
+    const topValue = topPx + 'px';
+
+    const bubblePanel = document.getElementById('panel');
+    if (bubblePanel) bubblePanel.style.top = topValue;
+
+    const musicPanel = document.getElementById('musicPanel');
+    if (musicPanel) musicPanel.style.top = topValue;
+
+    const videoPanel = document.getElementById('videoPlaylist');
+    if (videoPanel) videoPanel.style.top = topValue;
+  } catch (_) {
+    // no-op
+  }
+}
+
+// Observe toolbar layout changes to keep panels anchored
+function installToolbarAnchorObservers() {
+  const toolbar = document.getElementById('toolbar');
+  if (!toolbar) return;
+
+  // Initial position
+  updatePanelAnchors();
+
+  // On window resize and scroll
+  window.addEventListener('resize', updatePanelAnchors);
+  window.addEventListener('orientationchange', updatePanelAnchors);
+  window.addEventListener('scroll', updatePanelAnchors, { passive: true });
+
+  // Also after load to ensure accurate measurements
+  window.addEventListener('load', updatePanelAnchors);
+
+  // On DOM mutations within the toolbar that change size
+  try {
+    const observer = new MutationObserver(() => {
+      // micro-debounce via rAF
+      requestAnimationFrame(updatePanelAnchors);
+    });
+    observer.observe(toolbar, { attributes: true, childList: true, subtree: true });
+  } catch (_) {}
+}
+
 function toggleSpeed() {
   const speedSlider = document.querySelector('input[type="range"]');
   if (speedMultiplier === 0) {
@@ -4872,6 +5974,15 @@ function toggleSpeed() {
     speedSlider.value = previousSpeed;
     speedSlider.classList.remove('paused');
     logger.info('▶️ Animation resumed at speed:', previousSpeed);
+    
+    // Ensure media toolbar is hidden when running
+    if (typeof toggleMediaToolbarVisibilityOnly === 'function') {
+      const bar = document.getElementById('mediaToolbar');
+      if (bar && (bar.style.display === 'flex' || getComputedStyle(bar).display === 'flex')) {
+        logger.info('📺 Hiding media toolbar (spacebar resume)');
+        toggleMediaToolbarVisibilityOnly();
+      }
+    }
   } else {
     // If currently running, pause and remember current speed
     previousSpeed = speedMultiplier;
@@ -4880,6 +5991,19 @@ function toggleSpeed() {
     speedSlider.value = 0;
     speedSlider.classList.add('paused');
     logger.info('⏸️ Animation paused');
+    
+    // Ensure media toolbar is shown when paused
+    if (typeof toggleMediaToolbarVisibilityOnly === 'function') {
+      const bar = document.getElementById('mediaToolbar');
+      if (bar && (bar.style.display === 'none' || getComputedStyle(bar).display === 'none')) {
+        logger.info('📺 Showing media toolbar (spacebar pause)');
+        toggleMediaToolbarVisibilityOnly();
+      }
+    }
+  }
+  // Keep toolbar icon in sync when spacebar toggles speed
+  if (typeof updatePauseButtonIcon === 'function') {
+    updatePauseButtonIcon();
   }
 }
 
@@ -4899,9 +6023,12 @@ function togglePauseButton() {
     speedSlider.value = previousSpeed;
     speedSlider.classList.remove('paused');
     
-    // Toggle media toolbar visibility when unpausing
-    if (typeof toggleMediaToolbarVisibility === 'function') {
-      toggleMediaToolbarVisibility();
+    // Ensure media toolbar is hidden when running
+    if (typeof toggleMediaToolbar === 'function') {
+      const bar = document.getElementById('mediaToolbar');
+      if (bar && (bar.style.display === 'flex' || getComputedStyle(bar).display === 'flex')) {
+        toggleMediaToolbar();
+      }
     }
   } else {
     // If currently running, pause and remember current speed
@@ -4910,9 +6037,12 @@ function togglePauseButton() {
     speedSlider.value = 0;
     speedSlider.classList.add('paused');
     
-    // Toggle media toolbar visibility when pausing
-    if (typeof toggleMediaToolbarVisibility === 'function') {
-      toggleMediaToolbarVisibility();
+    // Ensure media toolbar is shown when paused
+    if (typeof toggleMediaToolbar === 'function') {
+      const bar = document.getElementById('mediaToolbar');
+      if (bar && (bar.style.display === 'none' || getComputedStyle(bar).display === 'none')) {
+        toggleMediaToolbar();
+      }
     }
   }
   

@@ -128,6 +128,22 @@ let visualizerInterval = null;
 let isMusicPlaying = false;
 let currentVisualizerColors = [];
 
+// ===== IDEA ID ASSIGNMENT FOR ANIMATION MAPPING =====
+let ideaUidCounter = 1;
+function ensureIdeaUids() {
+  try {
+    if (!Array.isArray(ideas)) return;
+    for (let i = 0; i < ideas.length; i++) {
+      const idea = ideas[i];
+      if (idea && !idea._uid) {
+        idea._uid = ideaUidCounter++;
+      }
+    }
+  } catch (e) {
+    // non-fatal
+  }
+}
+
 // ===== VISUALIZER READY CHECK =====
 function waitForVisualizer(callback) {
     if (typeof window.LocalVisualizer !== 'undefined') {
@@ -168,6 +184,56 @@ function loadYouTubeVideo() {
   }
 }
 
+// ===== YOUTUBE IFRAME API SUPPORT =====
+let youTubeApiReady = null;
+let ytPlayer = null;
+let unembeddableVideoIds = new Set();
+
+function ensureYouTubeAPI() {
+  if (youTubeApiReady) return youTubeApiReady;
+  youTubeApiReady = new Promise((resolve) => {
+    if (window.YT && window.YT.Player) {
+      resolve();
+      return;
+    }
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+    window.onYouTubeIframeAPIReady = function() {
+      resolve();
+    };
+  });
+  return youTubeApiReady;
+}
+
+function initYouTubePlayer(videoId) {
+  const iframeEl = document.getElementById('videoIframe');
+  if (!iframeEl) return;
+  ytPlayer = new YT.Player('videoIframe', {
+    videoId: videoId,
+    playerVars: { autoplay: 1, controls: 1, rel: 0, modestbranding: 1 },
+    events: {
+      onReady: function() {
+        try { ytPlayer.playVideo(); } catch (e) {}
+      },
+      onError: function(e) {
+        // 101/150: embedding disabled by owner
+        if (e && (e.data === 101 || e.data === 150)) {
+          unembeddableVideoIds.add(videoId);
+          logger.warn('📺 Embedding disabled by owner for video', videoId, 'VIDEO');
+          // Try next video if available, otherwise offer to open on YouTube
+          if (typeof window.videoNext === 'function') {
+            window.videoNext();
+          } else {
+            const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            window.open(watchUrl, '_blank');
+          }
+        }
+      }
+    }
+  });
+}
+
 // ===== MUSIC FUNCTIONS =====
 
 function toggleMusicPanel() {
@@ -178,6 +244,8 @@ function toggleMusicPanel() {
     
     // Highlight currently playing track if any
     highlightCurrentTrack();
+    // Sync DOM index so Next/Prev continue correctly after reopen
+    syncCurrentMusicDomIndex();
     
     // Update now playing info
     updateNowPlayingInfo();
@@ -341,7 +409,7 @@ async function loadMusicList() {
   const canPlayMp3 = audio.canPlayType('audio/mpeg');
   const canPlayOpus = audio.canPlayType('audio/opus');
   
-  musicFiles.forEach(track => {
+  musicFiles.forEach((track, index) => {
     // Track processing logging removed for performance
     const musicItem = document.createElement('div');
     musicItem.className = 'music-item';
@@ -353,6 +421,9 @@ async function loadMusicList() {
       musicItem.textContent = displayName;
       musicItem.style.borderLeft = '3px solid #9C27B0';
       musicItem.title = `Radio Stream: ${track.url}`;
+      // Mark item metadata for reliable matching
+      musicItem.dataset.type = 'radio';
+      musicItem.dataset.radioUrl = track.url;
       // Radio item created
     } else {
       // Local file
@@ -366,15 +437,21 @@ async function loadMusicList() {
         musicItem.style.borderLeft = '3px solid #ff6b6b';
         musicItem.title = 'OPUS format - may not work in all browsers';
       }
+      // Mark item metadata for reliable matching
+      musicItem.dataset.type = 'file';
+      musicItem.dataset.url = track.url;
       // Music item created
     }
     
     musicItem.onclick = (event) => {
       if (track.url.startsWith('http://') || track.url.startsWith('https://')) {
-        playRadioStream(track.url);
+        // Use the playlist-aware version so highlighting follows DOM order
+        playRadioStreamFromPlaylist(track.url, index);
       } else {
         playMusic(track.url, event);
       }
+      // Update stored DOM index so next/prev navigate correctly
+      currentMusicDomIndex = index;
     };
     musicList.appendChild(musicItem);
   });
@@ -460,12 +537,18 @@ function playMusic(filename, event) {
 
   window.currentAudio = audio;
   updateNowPlayingInfo();
+  // Ensure DOM index reflects the clicked item
+  if (event && event.target) {
+    const items = document.querySelectorAll('.music-item');
+    currentMusicDomIndex = Array.prototype.indexOf.call(items, event.target.closest('.music-item'));
+  }
 
   // Enhance music playback with better controls and monitoring
   const cleanupEnhancement = enhanceMusicPlayback(audio);
 
   // Add event listeners to detect when music ends naturally
   audio.addEventListener('ended', () => {
+    if (audio !== window.currentAudio) return;
     isMusicPlaying = false;
     stopMusicVisualizer();
     
@@ -487,6 +570,7 @@ function playMusic(filename, event) {
   });
 
   audio.addEventListener('pause', () => {
+    if (audio !== window.currentAudio) return;
     isMusicPlaying = false;
     stopMusicVisualizer();
     // Update music button to show inactive state
@@ -497,6 +581,7 @@ function playMusic(filename, event) {
   });
 
   audio.addEventListener('play', () => {
+    if (audio !== window.currentAudio) return;
     isMusicPlaying = true;
     startMusicVisualizer();
     // Update music button to show active state
@@ -540,6 +625,9 @@ let isMusicLooping = true;
 let isPlaylistStarted = false; // Track if playlist has been started
 let isMediaToolbarMinimized = false; // Track if media toolbar is minimized
 let isMediaToolbarVisible = false; // Track if media toolbar is visible
+// Shuffle and DOM index tracking
+let isMusicShuffle = false; // When true, Next selects a random item from the visible list
+let currentMusicDomIndex = -1; // Tracks the index within the visible music list
 
 function stopMusic() {
   // Toggle play/pause for currently playing audio
@@ -666,6 +754,8 @@ async function startMusicPlaylist() {
 function playMusicFromPlaylist(index) {
   if (index >= 0 && index < musicPlaylist.length) {
     currentMusicIndex = index;
+    // Also sync the DOM index for navigation
+    syncCurrentMusicDomIndex();
     const track = musicPlaylist[index];
     
     // Update visual indicators
@@ -742,6 +832,7 @@ function playRadioStream(radioUrl) {
     
     // Add event listeners
     audio.addEventListener('ended', () => {
+      if (audio !== window.currentAudio) return;
       logger.audio('Radio stream ended');
       const musicButton = document.querySelector('[data-icon="music"]');
       if (musicButton && typeof PNGLoader !== 'undefined') {
@@ -750,6 +841,7 @@ function playRadioStream(radioUrl) {
     });
 
     audio.addEventListener('pause', () => {
+      if (audio !== window.currentAudio) return;
       logger.audio('Radio paused');
       const musicButton = document.querySelector('[data-icon="music"]');
       if (musicButton && typeof PNGLoader !== 'undefined') {
@@ -758,6 +850,7 @@ function playRadioStream(radioUrl) {
     });
 
     audio.addEventListener('play', () => {
+      if (audio !== window.currentAudio) return;
       logger.audio('Radio started playing');
       const musicButton = document.querySelector('[data-icon="music"]');
       if (musicButton && typeof PNGLoader !== 'undefined') {
@@ -824,6 +917,9 @@ function playRadioStreamFromPlaylist(radioUrl, index) {
         logger.debug(`Highlighted radio item ${i}:`, { itemText: item.textContent }, 'AUDIO');
       }
     });
+    // Sync current DOM index and logical index
+    currentMusicDomIndex = index;
+    currentMusicIndex = index;
     
     // Create new audio element for radio
     const audio = new Audio(radioUrl);
@@ -831,6 +927,7 @@ function playRadioStreamFromPlaylist(radioUrl, index) {
     
     // Add event listeners
     audio.addEventListener('ended', () => {
+      if (audio !== window.currentAudio) return;
       logger.audio('Radio stream ended');
       const musicButton = document.querySelector('[data-icon="music"]');
       if (musicButton && typeof PNGLoader !== 'undefined') {
@@ -843,6 +940,7 @@ function playRadioStreamFromPlaylist(radioUrl, index) {
     });
 
     audio.addEventListener('pause', () => {
+      if (audio !== window.currentAudio) return;
       logger.audio('Radio paused');
       const musicButton = document.querySelector('[data-icon="music"]');
       if (musicButton && typeof PNGLoader !== 'undefined') {
@@ -855,6 +953,7 @@ function playRadioStreamFromPlaylist(radioUrl, index) {
     });
 
     audio.addEventListener('play', () => {
+      if (audio !== window.currentAudio) return;
       logger.audio('Radio started playing');
       const musicButton = document.querySelector('[data-icon="music"]');
       if (musicButton && typeof PNGLoader !== 'undefined') {
@@ -897,120 +996,98 @@ function playRadioStreamFromPlaylist(radioUrl, index) {
 }
 
 function nextMusicTrack() {
-  // Check if we have uploaded radio URLs - if so, cycle through only those
-  if (window.uploadedMusicPlaylist && window.uploadedMusicPlaylist.length > 0) {
-    // Cycle through uploaded radio URLs only
-    window.currentMusicPlaylistIndex = window.currentMusicPlaylistIndex || 0;
-    window.currentMusicPlaylistIndex = (window.currentMusicPlaylistIndex + 1) % window.uploadedMusicPlaylist.length;
-    
-    const radioTrack = window.uploadedMusicPlaylist[window.currentMusicPlaylistIndex];
-    
-    
-    if (radioTrack.url) {
-      playRadioStreamFromPlaylist(radioTrack.url, window.currentMusicPlaylistIndex);
-    }
-    
-    // Update highlighting after track change
-    setTimeout(() => {
-      highlightCurrentTrack();
-      updateNowPlayingInfo();
-    }, 100);
-  } else if (musicPlaylist.length > 0) {
-    // Go to next track in regular playlist
-    const nextIndex = (currentMusicIndex + 1) % musicPlaylist.length;
+  // Always navigate in the order currently displayed in the music panel
+  const musicItems = document.querySelectorAll('.music-item');
+  if (musicItems.length === 0) {
+    logger.audio('No music tracks or radio stations available');
+    return;
+  }
 
-    playMusicFromPlaylist(nextIndex);
-    
-    // Update highlighting after track change
-    setTimeout(() => {
-      highlightCurrentTrack();
-      updateNowPlayingInfo();
-    }, 100);
-  } else {
-    // Check if there are music items in the DOM but not in the playlists
-    const musicItems = document.querySelectorAll('.music-item');
-    if (musicItems.length > 0) {
-      logger.debug('Found music items in DOM but no playlist arrays populated. Using DOM navigation.', null, 'AUDIO');
-      
-      // Find currently playing item
-      let currentIndex = -1;
-      const playingItem = document.querySelector('.music-item.playing');
-      if (playingItem) {
-        for (let i = 0; i < musicItems.length; i++) {
-          if (musicItems[i] === playingItem) {
-            currentIndex = i;
-            break;
-          }
-        }
-      }
-      
-      // Go to next item (or first if none playing)
-      const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % musicItems.length : 0;
-      logger.debug(`Clicking next DOM item at index: ${nextIndex}`, null, 'AUDIO');
-      musicItems[nextIndex].click();
-    } else {
-      logger.audio('No music tracks or radio stations available');
+  // Determine current index by stored DOM index first, fallback to highlighted element
+  let currentIndex = (typeof currentMusicDomIndex === 'number' && currentMusicDomIndex >= 0) ? currentMusicDomIndex : -1;
+  if (currentIndex === -1) {
+    const playingItem = document.querySelector('.music-item.playing');
+    if (playingItem) {
+      currentIndex = Array.prototype.indexOf.call(musicItems, playingItem);
     }
   }
+
+  // Shuffle support
+  let nextIndex;
+  if (isMusicShuffle) {
+    // Pick a random different index if more than 1 item
+    if (musicItems.length > 1) {
+      do {
+        nextIndex = Math.floor(Math.random() * musicItems.length);
+      } while (nextIndex === currentIndex);
+    } else {
+      nextIndex = 0;
+    }
+  } else {
+    nextIndex = currentIndex >= 0 ? (currentIndex + 1) % musicItems.length : 0;
+  }
+  logger.debug(`Clicking next DOM item at index: ${nextIndex}`, null, 'AUDIO');
+  musicItems[nextIndex].click();
+  currentMusicDomIndex = nextIndex;
 }
 
 function previousMusicTrack() {
-  // Check if we have uploaded radio URLs - if so, cycle through only those
-  if (window.uploadedMusicPlaylist && window.uploadedMusicPlaylist.length > 0) {
-    // Cycle through uploaded radio URLs only
-    window.currentMusicPlaylistIndex = window.currentMusicPlaylistIndex || 0;
-    window.currentMusicPlaylistIndex = (window.currentMusicPlaylistIndex - 1 + window.uploadedMusicPlaylist.length) % window.uploadedMusicPlaylist.length;
-    
-    const radioTrack = window.uploadedMusicPlaylist[window.currentMusicPlaylistIndex];
-    
-    
-    if (radioTrack.url) {
-      playRadioStreamFromPlaylist(radioTrack.url, window.currentMusicPlaylistIndex);
-    }
-    
-    // Update highlighting after track change
-    setTimeout(() => {
-      highlightCurrentTrack();
-      updateNowPlayingInfo();
-    }, 100);
-  } else if (musicPlaylist.length > 0) {
-    // Go to previous track in regular playlist
-    const prevIndex = (currentMusicIndex - 1 + musicPlaylist.length) % musicPlaylist.length;
+  // Always navigate in the order currently displayed in the music panel
+  const musicItems = document.querySelectorAll('.music-item');
+  if (musicItems.length === 0) {
+    logger.audio('No music tracks or radio stations available');
+    return;
+  }
 
-    playMusicFromPlaylist(prevIndex);
-    
-    // Update highlighting after track change
-    setTimeout(() => {
-      highlightCurrentTrack();
-      updateNowPlayingInfo();
-    }, 100);
-  } else {
-    // Check if there are music items in the DOM but not in the playlists
-    const musicItems = document.querySelectorAll('.music-item');
-    if (musicItems.length > 0) {
-      logger.debug('Found music items in DOM but no playlist arrays populated. Using DOM navigation.', null, 'AUDIO');
-      
-      // Find currently playing item
-      let currentIndex = -1;
-      const playingItem = document.querySelector('.music-item.playing');
-      if (playingItem) {
-        for (let i = 0; i < musicItems.length; i++) {
-          if (musicItems[i] === playingItem) {
-            currentIndex = i;
-            break;
-          }
-        }
-      }
-      
-      // Go to previous item (or last if none playing)
-      const prevIndex = currentIndex >= 0 ? (currentIndex - 1 + musicItems.length) % musicItems.length : musicItems.length - 1;
-      logger.debug(`Clicking previous DOM item at index: ${prevIndex}`, null, 'AUDIO');
-      musicItems[prevIndex].click();
-    } else {
-      logger.audio('No music tracks or radio stations available');
+  // Determine current index by stored DOM index first, fallback to highlighted element
+  let currentIndex = (typeof currentMusicDomIndex === 'number' && currentMusicDomIndex >= 0) ? currentMusicDomIndex : -1;
+  if (currentIndex === -1) {
+    const playingItem = document.querySelector('.music-item.playing');
+    if (playingItem) {
+      currentIndex = Array.prototype.indexOf.call(musicItems, playingItem);
     }
   }
+
+  const prevIndex = currentIndex >= 0 ? (currentIndex - 1 + musicItems.length) % musicItems.length : musicItems.length - 1;
+  logger.debug(`Clicking previous DOM item at index: ${prevIndex}`, null, 'AUDIO');
+  musicItems[prevIndex].click();
+  currentMusicDomIndex = prevIndex;
 }
+
+function syncCurrentMusicDomIndex() {
+  const musicItems = document.querySelectorAll('.music-item');
+  const playingItem = document.querySelector('.music-item.playing');
+  if (playingItem) {
+    currentMusicDomIndex = Array.prototype.indexOf.call(musicItems, playingItem);
+    return;
+  }
+  // Try to match by currentAudio src
+  if (window.currentAudio && window.currentAudio.src) {
+    for (let i = 0; i < musicItems.length; i++) {
+      const item = musicItems[i];
+      if (item.dataset && item.dataset.type === 'file' && item.dataset.url) {
+        if (window.currentAudio.src.toLowerCase().endsWith(item.dataset.url.toLowerCase())) {
+          currentMusicDomIndex = i;
+          return;
+        }
+      }
+      if (item.dataset && item.dataset.type === 'radio' && item.dataset.radioUrl) {
+        if (window.currentAudio.src.indexOf(item.dataset.radioUrl) !== -1) {
+          currentMusicDomIndex = i;
+          return;
+        }
+      }
+    }
+  }
+  currentMusicDomIndex = -1;
+}
+
+function toggleMusicShuffle(enabled) {
+  isMusicShuffle = !!enabled;
+}
+
+// Expose shuffle to global for the inline onchange
+window.toggleMusicShuffle = toggleMusicShuffle;
 
 async function handleMusicRightClick() {
   if (!isPlaylistStarted) {
@@ -1477,10 +1554,9 @@ function playMp4Video() {
   isPlayingMp4 = true;
   videoIsPlaying = true;
   
-  // Update video button to show active state
-  const videoButton = document.querySelector('[data-icon="video"]');
-  if (videoButton && typeof PNGLoader !== 'undefined') {
-    PNGLoader.applyPNG(videoButton, 'video2.png');
+  // Update video button icon based on current state
+  if (typeof updateVideoButtonIcon === 'function') {
+    updateVideoButtonIcon();
   }
   
   // Show video player if hidden
@@ -1507,10 +1583,9 @@ function stopMp4Video() {
     isPlayingMp4 = false;
     videoIsPlaying = false;
     
-    // Update video button to show inactive state
-    const videoButton = document.querySelector('[data-icon="video"]');
-    if (videoButton && typeof PNGLoader !== 'undefined') {
-      PNGLoader.applyPNG(videoButton, 'video.png');
+    // Update video button icon based on current state
+    if (typeof updateVideoButtonIcon === 'function') {
+      updateVideoButtonIcon();
     }
     
     logger.video('MP4 video stopped');
@@ -1587,14 +1662,7 @@ function enhanceVideo(videoElement) {
       case 'ArrowDown':
         videoElement.volume = Math.max(0, videoElement.volume - 0.1);
         break;
-      case 'KeyF':
-        e.preventDefault();
-        if (document.fullscreenElement) {
-          document.exitFullscreen();
-        } else {
-          videoElement.requestFullscreen();
-        }
-        break;
+      // Removed KeyF: reserved for drawing flash in main.js
       // M key shortcut removed - conflicts with music panel shortcut
     }
   };
@@ -1924,25 +1992,9 @@ function detectContentType(url) {
     return 'video';
   }
   
-  // Check for common video streaming domains
-  const videoStreamingDomains = [
-    'vimeo.com',
-    'dailymotion.com', 
-    'twitch.tv',
-    'streamable.com',
-    'video.google.com',
-    'facebook.com/watch',
-    'instagram.com/p/',
-    'tiktok.com',
-    'cdn.',
-    'stream.',
-    'video.',
-    'media.'
-  ];
-  
-  if (videoStreamingDomains.some(domain => urlLower.includes(domain))) {
-    return 'video';
-  }
+  // IMPORTANT: Do NOT guess 'video' for generic streaming paths/domains.
+  // Only explicit file or manifest extensions above should be classified as 'video'.
+  // Everything else should be treated as 'website' so it embeds in an iframe.
   
   // Default to website
   return 'website';
@@ -2052,10 +2104,8 @@ function toggleMediaToolbar() {
     bar.style.display = newDisplay;
     isMediaToolbarVisible = (newDisplay === "flex");
     
-    // Update news ticker visibility
-    if (typeof window.updateNewsTickerVisibility === 'function') {
-      window.updateNewsTickerVisibility(isMediaToolbarVisible);
-    }
+    // News ticker visibility no longer controlled by media toolbar
+    logger.info(`📺 Media toolbar visibility toggled to: ${newDisplay} (news ticker unaffected)`);
   }
 }
 
@@ -2082,11 +2132,28 @@ function toggleMediaToolbarVisibility() {
     bar.style.display = newDisplay;
     isMediaToolbarVisible = (newDisplay === "flex");
     
-    // Update news ticker visibility
-    if (typeof window.updateNewsTickerVisibility === 'function') {
-      window.updateNewsTickerVisibility(isMediaToolbarVisible);
-    }
+    // News ticker visibility no longer controlled by media toolbar
+    logger.info(`📺 Media toolbar visibility toggled to: ${newDisplay} (news ticker unaffected)`);
   }
+}
+
+// Function to control toolbar visibility without affecting news ticker
+function toggleMediaToolbarVisibilityOnly() {
+  const bar = document.getElementById("mediaToolbar");
+  if (bar) {
+    const currentDisplay = bar.style.display || getComputedStyle(bar).display;
+    const newDisplay = (currentDisplay === "none" || currentDisplay === "") ? "flex" : "none";
+    bar.style.display = newDisplay;
+    isMediaToolbarVisible = (newDisplay === "flex");
+    
+    // Don't update news ticker visibility - only control toolbar
+    logger.info(`📺 Media toolbar visibility toggled to: ${newDisplay} (news ticker unaffected)`);
+  }
+}
+
+// Make the new function available globally
+if (typeof window !== 'undefined') {
+  window.toggleMediaToolbarVisibilityOnly = toggleMediaToolbarVisibilityOnly;
 }
 
 // ===== MOBILE TOOLBAR INITIALIZATION =====
@@ -2470,6 +2537,83 @@ function initVideoPlayer() {
   }
 }
 
+// ===== VIDEO AS BACKGROUND TOGGLE =====
+let videoBackgroundMode = false;
+let savedVideoPlayerStyle = null;
+
+function toggleVideoBackground() {
+  const player = document.getElementById('videoPlayer');
+  const iframe = document.getElementById('videoIframe');
+  const bgVideo = document.getElementById('bgVideo');
+  const ytFrame = document.getElementById('ytFrame');
+  if (!player || !iframe) {
+    logger.warn('🎬 Video player/iframe not found', null, 'VIDEO');
+    return;
+  }
+
+  if (!videoBackgroundMode) {
+    // Enter background mode: place the video iframe behind the canvas
+    savedVideoPlayerStyle = {
+      display: player.style.display,
+      pointerEvents: player.style.pointerEvents,
+      zIndex: player.style.zIndex,
+      visibility: player.style.visibility,
+      position: player.style.position,
+      top: player.style.top,
+      left: player.style.left,
+      width: player.style.width,
+      height: player.style.height,
+      transform: player.style.transform
+    };
+
+    // Ensure other background elements are hidden to avoid stacking
+    if (bgVideo) { bgVideo.style.display = 'none'; }
+    if (ytFrame) { ytFrame.style.display = 'none'; ytFrame.src = ''; }
+
+    // Expand and move the player behind everything
+    player.style.display = 'block';
+    player.style.pointerEvents = 'none';
+    player.style.zIndex = '-2';
+    player.style.visibility = 'visible';
+    player.style.position = 'fixed';
+    player.style.top = '0';
+    player.style.left = '0';
+    player.style.width = '100vw';
+    player.style.height = '100vh';
+    player.style.transform = 'none';
+
+    // Ensure iframe fills container
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+
+    videoBackgroundMode = true;
+    logger.success('🎬 Video set as background (iframe behind canvas)', null, 'VIDEO');
+  } else {
+    // Exit background mode: restore previous player positioning
+    if (savedVideoPlayerStyle) {
+      player.style.display = savedVideoPlayerStyle.display || '';
+      player.style.pointerEvents = savedVideoPlayerStyle.pointerEvents || '';
+      player.style.zIndex = savedVideoPlayerStyle.zIndex || '';
+      player.style.visibility = savedVideoPlayerStyle.visibility || '';
+      player.style.position = savedVideoPlayerStyle.position || '';
+      player.style.top = savedVideoPlayerStyle.top || '';
+      player.style.left = savedVideoPlayerStyle.left || '';
+      player.style.width = savedVideoPlayerStyle.width || '';
+      player.style.height = savedVideoPlayerStyle.height || '';
+      player.style.transform = savedVideoPlayerStyle.transform || '';
+    }
+
+    // Allow interactions with the floating player again
+    player.style.pointerEvents = 'auto';
+    if (player.style.zIndex === '' || player.style.zIndex === '-2') {
+      player.style.zIndex = '9998';
+    }
+
+    videoBackgroundMode = false;
+    logger.success('🎬 Video background mode disabled', null, 'VIDEO');
+  }
+}
+
 // Video Playlist loading function
 async function loadVideoPlaylist() {
   try {
@@ -2525,12 +2669,16 @@ async function loadVideoPlaylist() {
     const content = await response.text();
     const lines = content.split('\n').filter(line => line.trim() !== '');
     
-    // Filter for YouTube URLs
+    // Filter for valid URLs (including YouTube, webcam streams, etc.)
     videoPlaylist = lines.filter(line => {
-      return line.includes('youtube.com') || line.includes('youtu.be');
+      const trimmedLine = line.trim();
+      // Check if it's a valid URL (starts with http:// or https://)
+      return trimmedLine.startsWith('http://') || trimmedLine.startsWith('https://');
     });
     
-    logger.info(`📋 Video Loaded ${videoPlaylist.length} videos from playlist`);
+    const youtubeCount = videoPlaylist.filter(url => url.includes('youtube.com') || url.includes('youtu.be')).length;
+    const otherCount = videoPlaylist.length - youtubeCount;
+    logger.info(`📋 Video Loaded ${videoPlaylist.length} URLs from playlist (${youtubeCount} YouTube videos, ${otherCount} other content)`);
     
     // Update display after loading
     if (typeof updateVideoPlaylistDisplay === 'function') {
@@ -2581,20 +2729,22 @@ async function uploadPlaylist() {
     const content = e.target.result;
     const lines = content.split('\n').filter(line => line.trim() !== '');
     
-    // Extract YouTube URLs from lines and remove duplicates
-    const youtubeUrls = lines.filter(line => {
-      return line.includes('youtube.com') || line.includes('youtu.be');
+    // Extract all valid URLs from lines and remove duplicates
+    const validUrls = lines.filter(line => {
+      const trimmedLine = line.trim();
+      // Check if it's a valid URL (starts with http:// or https://)
+      return trimmedLine.startsWith('http://') || trimmedLine.startsWith('https://');
     });
     
-    if (youtubeUrls.length === 0) {
-      alert('No YouTube URLs found in the file. Please include YouTube links (one per line).');
+    if (validUrls.length === 0) {
+      alert('No valid URLs found in the file. Please include valid URLs (one per line) starting with http:// or https://.');
       return;
     }
     
     // Remove duplicate URLs to prevent playlist duplication
-    const uniqueUrls = [...new Set(youtubeUrls)];
-    if (uniqueUrls.length !== youtubeUrls.length) {
-      logger.warn(`📋 Removed ${youtubeUrls.length - uniqueUrls.length} duplicate URLs from playlist`);
+    const uniqueUrls = [...new Set(validUrls)];
+    if (uniqueUrls.length !== validUrls.length) {
+      logger.warn(`📋 Removed ${validUrls.length - uniqueUrls.length} duplicate URLs from playlist`);
     }
     
     // Replace current playlist with uploaded one (using unique URLs)
@@ -2609,14 +2759,14 @@ async function uploadPlaylist() {
     if (existingIndex === -1) {
       uploadedPlaylists.push({
         name: playlistName,
-        urls: youtubeUrls
+        urls: uniqueUrls
       });
       currentPlaylistIndex = uploadedPlaylists.length - 1; // Set to the newly uploaded playlist
     } else {
       // Replace existing playlist
       uploadedPlaylists[existingIndex] = {
         name: playlistName,
-        urls: youtubeUrls
+        urls: uniqueUrls
       };
       currentPlaylistIndex = existingIndex;
     }
@@ -2629,8 +2779,10 @@ async function uploadPlaylist() {
     // Clear the file input
     fileInput.value = '';
     
-    logger.info(`📋 Uploaded playlist "${playlistName}" with ${youtubeUrls.length} videos`);
-    alert(`✅ Uploaded playlist "${playlistName}" with ${youtubeUrls.length} videos`);
+    const youtubeCount = uniqueUrls.filter(url => url.includes('youtube.com') || url.includes('youtu.be')).length;
+    const otherCount = uniqueUrls.length - youtubeCount;
+    logger.info(`📋 Uploaded playlist "${playlistName}" with ${uniqueUrls.length} URLs (${youtubeCount} YouTube videos, ${otherCount} other content)`);
+    alert(`✅ Uploaded playlist "${playlistName}" with ${uniqueUrls.length} URLs (${youtubeCount} YouTube videos, ${otherCount} other content)`);
   };
   
   reader.readAsText(file);
@@ -2782,10 +2934,10 @@ async function fetchVideoTitle(videoId) {
 function videoPlayVideo(index) {
   if (index < 0 || index >= videoPlaylist.length) return;
   
-  // Stop any currently playing MP4 video when switching to YouTube playlist video
+  // Stop any currently playing MP4 video when switching to playlist video
   if (isPlayingMp4) {
     stopMp4Video();
-            logger.info('🎬 Stopped MP4 video to play YouTube playlist video');
+            logger.info('🎬 Stopped MP4 video to play playlist video');
   }
   
   // Stop any currently playing single video stream when switching to playlist video
@@ -2798,34 +2950,106 @@ function videoPlayVideo(index) {
   const url = videoPlaylist[index];
   const videoId = extractYouTubeId(url);
   
-  if (!videoId) {
-    logger.error('❌ Invalid YouTube URL:', url);
+  const iframe = document.getElementById('videoIframe');
+  if (!iframe) {
+    logger.error('❌ Video iframe not found');
     return;
   }
   
-  const iframe = document.getElementById('videoIframe');
-  if (iframe) {
-            logger.debug('🎵 videoPlayVideo debug:', {
+  // Check if it's a YouTube URL or other type of URL
+  if (videoId) {
+    // Handle YouTube videos
+    logger.debug('🎵 videoPlayVideo debug (YouTube):', {
       index: index,
       videoId: videoId
     });
     
-    // Use the working approach from the example
-    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&controls=1&loop=1&playlist=${videoId}&enablejsapi=1&origin=${window.location.origin}`;
+    // If video previously flagged unembeddable, open on YouTube instead
+    if (unembeddableVideoIds && unembeddableVideoIds.has(videoId)) {
+      const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      window.open(watchUrl, '_blank');
+      logger.warn('📺 Opening video on YouTube due to embed restrictions', videoId, 'VIDEO');
+      return;
+    }
+    
+    // Prefer IFrame API; fallback to standard embed
+    ensureYouTubeAPI().then(() => {
+      try {
+        initYouTubePlayer(videoId);
+      } catch (e) {
+        const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&controls=1&loop=1&playlist=${videoId}&enablejsapi=1&origin=${window.location.origin}`;
+        iframe.src = embedUrl;
+      }
+      videoIsPlaying = true;
+      logger.info('🎵 Video Playing YouTube video:', index + 1, 'of', videoPlaylist.length, 'Video ID:', videoId);
+    });
+  } else {
+    // Handle non-YouTube URLs (webcam streams, direct video links, etc.)
+    logger.info('🌐 Playing non-YouTube URL from playlist:', url);
+    
+    const contentType = detectContentType(url);
+    let embedUrl;
+    
+    switch(contentType) {
+      case 'video':
+        // Handle direct video streams by creating an HTML5 video player
+        const videoHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { margin: 0; padding: 0; background: black; display: flex; justify-content: center; align-items: center; height: 100vh; }
+              video { max-width: 100%; max-height: 100%; object-fit: contain; }
+            </style>
+          </head>
+          <body>
+            <video controls autoplay loop crossorigin="anonymous">
+              <source src="${url}" type="video/mp4">
+              <source src="${url}" type="video/webm">
+              <source src="${url}" type="video/ogg">
+              <source src="${url}">
+              <p>Your browser doesn't support HTML5 video. <a href="${url}">Download the video</a> instead.</p>
+            </video>
+            <script>
+              const video = document.querySelector('video');
+              video.addEventListener('loadstart', () => {
+                console.log('🎥 Video loading started');
+              });
+              video.addEventListener('error', (e) => {
+                console.error('🎥 Video error:', e);
+                document.body.innerHTML = '<div style="color: white; text-align: center; padding: 20px;">Error loading video stream. Please check the URL and try again.</div>';
+              });
+              video.addEventListener('canplay', () => {
+                console.log('🎥 Video ready to play');
+              });
+            </script>
+          </body>
+          </html>
+        `;
+        
+        const blob = new Blob([videoHtml], { type: 'text/html' });
+        embedUrl = URL.createObjectURL(blob);
+        logger.info('🎥 Created HTML5 video player for video stream in playlist');
+        break;
+        
+      case 'website':
+      default:
+        // Handle regular websites by loading them directly in iframe
+        embedUrl = url;
+        logger.info('🌐 Loading website directly in iframe from playlist');
+        break;
+    }
+    
+    // Load the content in the iframe
     iframe.src = embedUrl;
     videoIsPlaying = true;
-            logger.info('🎵 Video Playing video:', index + 1, 'of', videoPlaylist.length, 'Video ID:', videoId);
-    
-    // Update the play button icon after a short delay to allow iframe to load
-    setTimeout(() => {
-      updateVideoPlayButtonIcon();
-    }, 1000);
-    
-    // Update the play button icon after a short delay to allow iframe to load
-    setTimeout(() => {
-      updateVideoPlayButtonIcon();
-    }, 1000);
+    logger.info('🌐 Playing non-YouTube content:', index + 1, 'of', videoPlaylist.length, 'URL:', url);
   }
+  
+  // Update the play button icon after a short delay to allow iframe to load
+  setTimeout(() => {
+    updateVideoPlayButtonIcon();
+  }, 1000);
   
   // Update display without triggering the flag system
   updateVideoPlaylistDisplaySilent();
@@ -3104,10 +3328,9 @@ function videoClose() {
   
   videoPlaylistVisible = false;
   
-  // Update video button to show inactive state
-  const videoButton = document.querySelector('[data-icon="video"]');
-  if (videoButton && typeof PNGLoader !== 'undefined') {
-    PNGLoader.applyPNG(videoButton, 'video.png');
+  // Update toolbar icon based on current state
+  if (typeof updateVideoButtonIcon === 'function') {
+    updateVideoButtonIcon();
   }
   
   // Clean up video enhancement
@@ -3248,7 +3471,7 @@ async function updateVideoPlaylistDisplay() {
     }
   } else {
     if (playlistHeader) {
-      playlistHeader.textContent = '💚 YouTube Playlist ♻️';
+      playlistHeader.textContent = '💚 Video Playlist ♻️';
     }
     if (currentPlaylistLabel) {
       currentPlaylistLabel.textContent = '📋 Upload Playlist (.txt):';
@@ -3294,12 +3517,34 @@ async function updateVideoPlaylistDisplay() {
       }
     }
     
-    // Use title if available, otherwise fall back to ID
-    const displayText = title ? title : (videoId ? `Video ${index + 1} (${videoId})` : `Video ${index + 1} (Invalid URL)`);
+    // Generate display text for different types of URLs
+    let displayText;
+    if (title) {
+      displayText = title;
+    } else if (videoId) {
+      displayText = `Video ${index + 1} (${videoId})`;
+    } else {
+      // For non-YouTube URLs, create a descriptive title
+      const contentType = detectContentType(url);
+      if (contentType === 'video') {
+        // Extract filename from URL or use domain
+        const urlObj = new URL(url);
+        const pathname = urlObj.pathname;
+        const filename = pathname.split('/').pop() || urlObj.hostname;
+        displayText = `Stream ${index + 1} (${filename})`;
+      } else if (contentType === 'website') {
+        // Use domain name for websites
+        const urlObj = new URL(url);
+        displayText = `Website ${index + 1} (${urlObj.hostname})`;
+      } else {
+        displayText = `Content ${index + 1} (${url})`;
+      }
+    }
+    
     item.textContent = displayText;
     
     item.onclick = () => {
-      logger.info('📋 Video Clicked playlist item:', index, 'Title:', title || 'Unknown', 'URL:', url);
+      logger.info('📋 Video Clicked playlist item:', index, 'Title:', displayText, 'URL:', url);
       videoPlayVideo(index);
       showVideoPlaylist(); // Show playlist when clicking
     };
@@ -3336,7 +3581,7 @@ async function updateVideoPlaylistDisplaySilent() {
     }
   } else {
     if (playlistHeader) {
-      playlistHeader.textContent = '💚 YouTube Playlist ♻️';
+      playlistHeader.textContent = '💚 Video Playlist ♻️';
     }
     if (currentPlaylistLabel) {
       currentPlaylistLabel.textContent = '📋 Upload Playlist (.txt):';
@@ -3373,12 +3618,34 @@ async function updateVideoPlaylistDisplaySilent() {
       }
     }
     
-    // Use title if available, otherwise fall back to ID
-    const displayText = title ? title : (videoId ? `Video ${index + 1} (${videoId})` : `Video ${index + 1} (Invalid URL)`);
+    // Generate display text for different types of URLs
+    let displayText;
+    if (title) {
+      displayText = title;
+    } else if (videoId) {
+      displayText = `Video ${index + 1} (${videoId})`;
+    } else {
+      // For non-YouTube URLs, create a descriptive title
+      const contentType = detectContentType(url);
+      if (contentType === 'video') {
+        // Extract filename from URL or use domain
+        const urlObj = new URL(url);
+        const pathname = urlObj.pathname;
+        const filename = pathname.split('/').pop() || urlObj.hostname;
+        displayText = `Stream ${index + 1} (${filename})`;
+      } else if (contentType === 'website') {
+        // Use domain name for websites
+        const urlObj = new URL(url);
+        displayText = `Website ${index + 1} (${urlObj.hostname})`;
+      } else {
+        displayText = `Content ${index + 1} (${url})`;
+      }
+    }
+    
     item.textContent = displayText;
     
     item.onclick = () => {
-      logger.info('📋 Video Clicked playlist item:', index, 'Title:', title || 'Unknown', 'URL:', url);
+      logger.info('📋 Video Clicked playlist item:', index, 'Title:', displayText, 'URL:', url);
       videoPlayVideo(index);
       showVideoPlaylist(); // Show playlist when clicking
     };
@@ -3440,12 +3707,9 @@ async function toggleVideoPlayer() {
     videoPlayerFirstOpen = true;
     window.videoPlayerFirstOpen = true;
     
-    // Update video button to show inactive state (only if not playing)
-    if (!videoIsPlaying) {
-      const videoButton = document.querySelector('[data-icon="video"]');
-      if (videoButton && typeof PNGLoader !== 'undefined') {
-        PNGLoader.applyPNG(videoButton, 'video.png');
-      }
+    // Keep icon logic centralized
+    if (typeof updateVideoButtonIcon === 'function') {
+      updateVideoButtonIcon();
     }
   } else {
     // Show video player with proper z-index and current opacity
@@ -3487,10 +3751,7 @@ async function toggleVideoPlayer() {
         videoCurrentIndex = 0;
         videoTitles = []; // Clear cached titles for new playlist
         
-        // Update display without auto-playing
-        if (typeof updateVideoPlaylistDisplaySilent === 'function') {
-          updateVideoPlaylistDisplaySilent();
-        }
+        // Defer playlist UI update to a single call later to avoid duplicates
         
         // Auto-play first video on first open
         if (videoPlayerFirstOpen && videoPlaylist.length > 0) {
@@ -3515,10 +3776,7 @@ async function toggleVideoPlayer() {
             videoCurrentIndex = 0;
             videoTitles = []; // Clear cached titles for new playlist
             
-            // Update display without auto-playing
-            if (typeof updateVideoPlaylistDisplaySilent === 'function') {
-              updateVideoPlaylistDisplaySilent();
-            }
+            // Defer playlist UI update to a single call later to avoid duplicates
             
             // Auto-play first video on first open
             if (videoPlayerFirstOpen && videoPlaylist.length > 0) {
@@ -3540,8 +3798,9 @@ async function toggleVideoPlayer() {
       logger.info('🎥 Video player toggled (no reinitialization needed)');
     }
       
+    // Perform a single playlist UI update after state is set to prevent first-load duplication
     if (needsInitialization && typeof updateVideoPlaylistDisplay === 'function') {
-        updateVideoPlaylistDisplay();
+      updateVideoPlaylistDisplay();
     }
     
     // Start with playlist hidden and update button text
@@ -3563,12 +3822,9 @@ async function toggleVideoPlayer() {
     // Reset playlist visibility state
     videoPlaylistVisible = false;
     
-    // Update video button to show active state (only if playing)
-    if (videoIsPlaying) {
-      const videoButton = document.querySelector('[data-icon="video"]');
-      if (videoButton && typeof PNGLoader !== 'undefined') {
-        PNGLoader.applyPNG(videoButton, 'video2.png');
-      }
+    // Keep icon logic centralized
+    if (typeof updateVideoButtonIcon === 'function') {
+      updateVideoButtonIcon();
     }
   }
   
@@ -3628,8 +3884,29 @@ function recordState(type) {
   const durationSelect = document.getElementById('mediaPlaybackDuration');
   const duration = parseInt(durationSelect.value);
   AnimationState.updateDuration(duration);
+  // Ensure timeline slider max reflects duration in seconds
+  const timelineSlider = document.getElementById('mediaPlaybackSlider');
+  if (timelineSlider) {
+    timelineSlider.min = 0;
+    timelineSlider.max = 1;
+    timelineSlider.step = ANIMATION_CONFIG.timelineStep;
+  }
   
   if (type === 'start') {
+    // If toolbar is hidden, show it minimized; if minimized, expand to full for marking In
+    const bar = document.getElementById('mediaToolbar');
+    if (bar) {
+      if (bar.style.display === 'none' || getComputedStyle(bar).display === 'none') {
+        bar.style.display = 'flex';
+        if (!bar.classList.contains('minimized')) bar.classList.add('minimized');
+        isMediaToolbarMinimized = true;
+      }
+      // Expand to maximize for editing when marking In
+      if (bar.classList.contains('minimized')) {
+        bar.classList.remove('minimized');
+        isMediaToolbarMinimized = false;
+      }
+    }
     // Auto-pause if speed is not 0
     if (typeof speedMultiplier !== 'undefined' && speedMultiplier !== 0) {
       if (typeof togglePauseButton === 'function') {
@@ -3667,6 +3944,11 @@ function recordState(type) {
     addTimelineMarker('in', 0);
     addTimelineMarker('out', duration / 1000);
     
+    // Reset slider to start when marking in
+    const timelineSliderEl = document.getElementById('mediaPlaybackSlider');
+    if (timelineSliderEl) timelineSliderEl.value = 0;
+    updateTimelineDisplay();
+    
     // Update time display
     updatePlaybackTimeDisplay(0, duration / 1000);
     
@@ -3677,41 +3959,59 @@ function recordState(type) {
     });
     
   } else if (type === 'end') {
-    if (!AnimationState.data.isRecording) {
-      alert('Please start recording first (mark in point)');
-      return;
-    }
-    
-    // Get current time from timeline slider
+    // Determine end time from slider (or default to full duration if missing)
     const timelineSlider = document.getElementById('mediaPlaybackSlider');
-    const progress = parseFloat(timelineSlider.value);
-    const endTime = progress * (duration / 1000);
-    
+    const sliderProgress = timelineSlider ? parseFloat(timelineSlider.value) : 1;
+    const endTime = Math.max(0, Math.min(1, isNaN(sliderProgress) ? 1 : sliderProgress)) * (duration / 1000);
+
+    const oldOut = AnimationState.data.outPoint;
     AnimationState.data.outPoint = endTime;
+    // Ending recording session if it was active
     AnimationState.data.isRecording = false;
-    logger.info('🏁 Out point adjusted to', endTime.toFixed(1), 's');
-    
-    // Update out marker position
+    logger.info('🏁 Out point set to', endTime.toFixed(1), 's');
+
+    // Update markers and slider display
     updateTimelineMarkers();
-    
+    if (timelineSlider) {
+      const newProgress = endTime / (duration / 1000);
+      timelineSlider.value = Math.max(0, Math.min(1, newProgress));
+    }
+
     // Capture current bubble positions for out point
     const endPositions = captureBubblePositions();
-    
-    // Update the out keyframe with current positions
-    const outKeyframeIndex = AnimationState.data.keyframes.findIndex(kf => kf.time === AnimationState.data.outPoint);
-    if (outKeyframeIndex !== -1) {
-      AnimationState.data.keyframes[outKeyframeIndex].positions = endPositions;
-    } else {
-      AnimationState.data.keyframes.push({
-        time: endTime,
-        positions: endPositions
-      });
+
+    // Ensure we have at least an in keyframe at 0
+    if (AnimationState.data.keyframes.length === 0) {
+      AnimationState.data.keyframes.push({ time: 0, positions: endPositions });
     }
-    
+
+    // Update or insert the out keyframe
+    let updated = false;
+    if (typeof oldOut === 'number') {
+      const oldIdx = AnimationState.data.keyframes.findIndex(kf => kf.time === oldOut);
+      if (oldIdx !== -1) {
+        AnimationState.data.keyframes[oldIdx].time = endTime;
+        AnimationState.data.keyframes[oldIdx].positions = endPositions;
+        updated = true;
+      }
+    }
+    if (!updated) {
+      // Try to find an existing keyframe at new end time to update
+      const exactIdx = AnimationState.data.keyframes.findIndex(kf => kf.time === endTime);
+      if (exactIdx !== -1) {
+        AnimationState.data.keyframes[exactIdx].positions = endPositions;
+      } else {
+        AnimationState.data.keyframes.push({ time: endTime, positions: endPositions });
+      }
+    }
+
+    // Keep keyframes ordered
+    AnimationState.data.keyframes.sort((a, b) => a.time - b.time);
+
     // Update time display
     updatePlaybackTimeDisplay(endTime, duration / 1000);
-    
-    logger.info('✅ Animation complete: Out point updated with current positions');
+
+    logger.info('✅ Out point updated with current positions (recording state not required)');
     
   } else if (type === 'keyframe') {
     // Pause any current playback
@@ -3727,15 +4027,27 @@ function recordState(type) {
     
     const maxTime = duration / 1000;
     
-    if (keyframeTime <= 0 || keyframeTime >= maxTime) {
-      alert('Keyframe must be between start and end of animation');
-      return;
+    // Auto-initialize in/out if not set
+    if (!AnimationState.data.isRecording && AnimationState.data.keyframes.length < 2) {
+      AnimationState.data.isRecording = true;
+      AnimationState.data.inPoint = 0;
+      AnimationState.data.outPoint = maxTime;
+      const currentPositions = captureBubblePositions();
+      AnimationState.data.keyframes = [
+        { time: 0, positions: currentPositions },
+        { time: maxTime, positions: currentPositions }
+      ];
+      updateTimelineMarkers();
+      logger.info('🎬 Auto-initialized in/out for keyframing');
     }
+    
+    // Clamp keyframe to be within in/out (exclusive)
+    const clampedTime = Math.max(AnimationState.data.inPoint + 0.01, Math.min(AnimationState.data.outPoint - 0.01, keyframeTime));
     
     // Capture current bubble positions for keyframe
     const keyframePositions = captureBubblePositions();
     const keyframe = {
-      time: keyframeTime,
+      time: clampedTime,
       positions: keyframePositions
     };
     
@@ -3748,15 +4060,18 @@ function recordState(type) {
       logger.info('🎬 Started new animation recording');
     }
     
+    // Insert keyframe in time-sorted order
     AnimationState.data.keyframes.push(keyframe);
-    addTimelineMarker('keyframe', keyframeTime);
+    AnimationState.data.keyframes.sort((a, b) => a.time - b.time);
+    addTimelineMarker('keyframe', clampedTime);
     
-    logger.info('📍 Keyframe added at:', keyframeTime.toFixed(1), 's with current positions');
+    logger.info('📍 Keyframe added at:', clampedTime.toFixed(1), 's with current positions');
   }
 }
 
 function deepCopyIdeas() {
   // Deep copy the ideas array (equivalent to the previous system)
+  ensureIdeaUids();
   return ideas.map(idea => ({ ...idea }));
 }
 
@@ -3782,7 +4097,7 @@ function addTimelineMarker(type, time) {
   const marker = {
     type: type,
     time: time,
-    position: (time / (AnimationState.data.duration / 1000)) * 100 // Convert to percentage
+    position: Math.max(0, Math.min(100, (time / (AnimationState.data.duration / 1000)) * 100)) // Clamp 0-100%
   };
   
   // Remove existing marker of same type
@@ -3794,23 +4109,28 @@ function addTimelineMarker(type, time) {
 }
 
 function updateTimelineDisplay() {
-  const timeline = document.getElementById('mediaPlaybackSlider');
-  if (!timeline) return;
+  const overlay = document.getElementById('timelineMarkersOverlay');
+  const slider = document.getElementById('mediaPlaybackSlider');
+  if (!overlay || !slider) return;
   
   // Clear existing markers
-  const existingMarkers = timeline.parentNode.querySelectorAll('.timeline-marker');
-  existingMarkers.forEach(marker => marker.remove());
+  overlay.innerHTML = '';
   
-  // Add new markers
+  // Add new markers inside overlay, positioned over the slider track
   AnimationState.timelineMarkers.forEach(marker => {
     const markerElement = document.createElement('div');
     markerElement.className = 'timeline-marker';
+    markerElement.style.position = 'absolute';
+    markerElement.style.top = '50%';
+    markerElement.style.transform = 'translate(-50%, -50%)';
+    markerElement.style.width = '6px';
+    markerElement.style.height = '12px';
+    markerElement.style.borderRadius = '2px';
     markerElement.style.left = `${marker.position}%`;
     markerElement.style.backgroundColor = marker.type === 'in' ? '#4CAF50' : 
                                        marker.type === 'out' ? '#f44336' : '#FF9800';
     markerElement.title = `${marker.type} point at ${marker.time.toFixed(1)}s`;
-    
-    timeline.parentNode.appendChild(markerElement);
+    overlay.appendChild(markerElement);
   });
 }
 
@@ -3819,10 +4139,10 @@ function updateTimelineMarkers() {
   AnimationState.timelineMarkers = [];
   
   // Add in marker
-  addTimelineMarker('in', 0);
+  addTimelineMarker('in', AnimationState.data.inPoint || 0);
   
   // Add out marker
-  addTimelineMarker('out', AnimationState.data.outPoint);
+  addTimelineMarker('out', AnimationState.data.outPoint || (AnimationState.data.duration / 1000));
   
   // Add keyframe markers
   AnimationState.data.keyframes.forEach(keyframe => {
@@ -3839,6 +4159,8 @@ function updatePlaybackTimeDisplay(currentTime, totalTime) {
     const totalFormatted = formatTime(totalTime);
     timeDisplay.textContent = `${currentFormatted} / ${totalFormatted}`;
   }
+  // Also refresh marker positions to keep visuals in sync if needed
+  updateTimelineDisplay();
 }
 
 function startPlayback() {
@@ -3852,8 +4174,17 @@ function startPlayback() {
   // Check if we have at least 2 keyframes (in and out points)
   if (AnimationState.data.keyframes.length < 2) {
     logger.error('❌ Not enough keyframes for playback:', AnimationState.data.keyframes.length);
-    alert('Please set in point first to create animation (need at least 2 keyframes)');
-    return;
+    // Auto-create in/out at current positions if missing
+    const durationSeconds = AnimationState.data.duration / 1000;
+    AnimationState.data.inPoint = 0;
+    AnimationState.data.outPoint = durationSeconds;
+    const currentPositions = captureBubblePositions();
+    AnimationState.data.keyframes = [
+      { time: 0, positions: currentPositions },
+      { time: durationSeconds, positions: currentPositions }
+    ];
+    updateTimelineMarkers();
+    logger.info('✅ Auto-created in/out keyframes for playback');
   }
   
   logger.info('✅ Sufficient keyframes for playback:', AnimationState.data.keyframes.length);
@@ -3871,7 +4202,9 @@ function startPlayback() {
   
   logger.info('▶️ Starting animation playback:', AnimationState.playbackDuration, 'ms');
   
-  // Start the animation
+  // Start the animation and sync the slider
+  const timelineSlider = document.getElementById('mediaPlaybackSlider');
+  if (timelineSlider) timelineSlider.value = 0;
   animateBubbles(AnimationState.playbackDuration);
 }
 
@@ -3896,19 +4229,17 @@ function animateBubbles(duration) {
     const elapsed = currentTime - AnimationState.playbackStartTime;
     const progress = Math.min(elapsed / duration, 1);
     
-    // Calculate current playback time in seconds
+    // Calculate current playback time in seconds (absolute in animation timeline)
     AnimationState.currentPlaybackTime = inPoint + (progress * (outPoint - inPoint));
     
-    // Update timeline slider (only if it exists)
-    if (timelineSlider) {
-      timelineSlider.value = progress;
-    }
+    // Update timeline slider (only if it exists) with clamped progress
+    if (timelineSlider) timelineSlider.value = Math.max(0, Math.min(1, progress));
     
     // Update time display
     updatePlaybackTimeDisplay(AnimationState.currentPlaybackTime, durationSeconds);
     
-    // Interpolate bubble positions
-    interpolateBubblePositions(progress);
+    // Interpolate bubble positions at the absolute current time
+    interpolateBubblePositions(AnimationState.currentPlaybackTime);
     
     if (progress < 1) {
       requestAnimationFrame(animate);
@@ -3922,21 +4253,26 @@ function animateBubbles(duration) {
   animate();
 }
 
-function interpolateBubblePositions(progress) {
+function interpolateBubblePositions(currentTime) {
   if (AnimationState.data.keyframes.length < 2) {
     logger.error('❌ Not enough keyframes for interpolation:', AnimationState.data.keyframes.length);
     return;
   }
   
-  // Convert progress to time in seconds
-  const currentTime = progress * (AnimationState.data.duration / 1000);
+  // Clamp current time to animation duration
+  const maxTime = (AnimationState.data.duration / 1000);
+  if (currentTime < 0) currentTime = 0;
+  if (currentTime > maxTime) currentTime = maxTime;
   
   // Only log debug info every 30 frames to reduce performance impact
   if (typeof window.frameCounter !== 'undefined' && window.frameCounter % 30 === 0) {
-    logger.debug('🎬 Interpolating at progress:', progress, 'time:', currentTime.toFixed(1), 's');
+    logger.debug('🎬 Interpolating at time:', currentTime.toFixed(1), 's');
   }
   
-  // Find the two keyframes to interpolate between
+  // Ensure keyframes are sorted by time to support 3rd/4th points
+  AnimationState.data.keyframes.sort((a, b) => a.time - b.time);
+  
+  // Find the two keyframes to interpolate between for current time
   let startKeyframe = AnimationState.data.keyframes[0];
   let endKeyframe = AnimationState.data.keyframes[AnimationState.data.keyframes.length - 1];
   
@@ -3955,8 +4291,9 @@ function interpolateBubblePositions(progress) {
     }
   }
   
-  // Calculate interpolation factor
-  const segmentProgress = (currentTime - startKeyframe.time) / (endKeyframe.time - startKeyframe.time);
+  // Calculate interpolation factor (0..1) within segment
+  const denom = (endKeyframe.time - startKeyframe.time) || 0.000001;
+  const segmentProgress = (currentTime - startKeyframe.time) / denom;
   
   // Only log debug info every 30 frames
   if (typeof window.frameCounter !== 'undefined' && window.frameCounter % 30 === 0) {
@@ -3971,11 +4308,26 @@ function interpolateBubblePositions(progress) {
     // Cache ideas array length for better performance
     const ideasLength = ideas.length;
     
-    // Update the ideas array with interpolated positions
+    // Build uid->position maps for robust matching
+    const startMap = Object.create(null);
+    const endMap = Object.create(null);
+    for (let i = 0; i < startPositions.length; i++) {
+      const p = startPositions[i];
+      if (p && p._uid != null) startMap[p._uid] = p;
+    }
+    for (let i = 0; i < endPositions.length; i++) {
+      const p = endPositions[i];
+      if (p && p._uid != null) endMap[p._uid] = p;
+    }
+
+    // Ensure current ideas have uids
+    ensureIdeaUids();
+
+    // Update the ideas array with interpolated positions using uid mapping
     for (let index = 0; index < ideasLength; index++) {
       const idea = ideas[index];
-      const startPos = startPositions[index];
-      const endPos = endPositions[index];
+      const startPos = idea && idea._uid != null ? startMap[idea._uid] : startPositions[index];
+      const endPos = idea && idea._uid != null ? endMap[idea._uid] : endPositions[index];
       
       if (startPos && endPos) {
         // Interpolate position with optimized math
@@ -4168,12 +4520,10 @@ function setupMediaEventListeners() {
     timelineSlider.addEventListener('input', (e) => {
       if (!AnimationState.data.isPlaying) {
         const progress = parseFloat(e.target.value);
-        logger.info('🎛️ Timeline slider moved to progress:', progress, 'SYSTEM');
-        
         if (AnimationState.data.keyframes.length >= 2) {
           const currentTime = progress * (AnimationState.data.duration / 1000);
           AnimationState.currentPlaybackTime = currentTime;
-          interpolateBubblePositions(progress);
+          interpolateBubblePositions(currentTime);
           updatePlaybackTimeDisplay(currentTime, AnimationState.data.duration / 1000);
         } else {
           logger.warn('❌ No keyframes available for timeline scrubbing', null, 'SYSTEM');
@@ -4350,7 +4700,7 @@ const PNG_CONFIG = {
     { dataIcon: 'cycle', file: 'cycle.png' },
     { dataIcon: 'rand', file: 'rand.png' },
     { dataIcon: 'pause', file: 'pause.png' },
-    { dataIcon: 'video', file: 'video.png' },
+    { dataIcon: 'video', file: 'video2.png' },
     { dataIcon: 'snapshot', file: 'snapshot.png' },
     { dataIcon: 'save', file: 'save.png' },
     { dataIcon: 'load', file: 'load.png' },
@@ -4530,9 +4880,15 @@ function updateVideoPlayButtonIcon() {
 function updateVideoButtonIcon() {
   const videoButton = document.querySelector('[data-icon="video"]');
   if (videoButton && typeof PNGLoader !== 'undefined') {
-    const filename = videoIsPlaying ? 'video2.png' : 'video.png';
+    // Show video.png when the player is open OR when any video is actively playing (even if UI hidden)
+    // Show video2.png only when player is closed AND nothing is playing
+    const player = document.getElementById('videoPlayer');
+    const isPlayerOpen = player && (player.style.display !== 'none' || getComputedStyle(player).display !== 'none');
+    const hasActivePlayback = !!videoIsPlaying; // unified playback flag
+    const showPlayerIcon = isPlayerOpen || hasActivePlayback;
+    const filename = showPlayerIcon ? 'video.png' : 'video2.png';
     PNGLoader.applyPNG(videoButton, filename);
-    logger.info(`🎥 Updated video button to ${filename} (playing: ${videoIsPlaying})`, null, 'VIDEO');
+    logger.info(`🎥 Updated video button to ${filename} (open:${showPlayerIcon}, playing:${videoIsPlaying})`, null, 'VIDEO');
   }
 }
 
@@ -4591,16 +4947,18 @@ async function preloadPlaylists() {
         const content = await response.text();
         const lines = content.split('\n').filter(line => line.trim() !== '');
         
-        // Extract YouTube URLs from lines and remove duplicates
-        const youtubeUrls = lines.filter(line => {
-          return line.includes('youtube.com') || line.includes('youtu.be');
+        // Extract all valid URLs from lines and remove duplicates
+        const validUrls = lines.filter(line => {
+          const trimmedLine = line.trim();
+          // Check if it's a valid URL (starts with http:// or https://)
+          return trimmedLine.startsWith('http://') || trimmedLine.startsWith('https://');
         });
         
-        if (youtubeUrls.length > 0) {
+        if (validUrls.length > 0) {
           // Remove duplicate URLs to prevent playlist duplication
-          const uniqueUrls = [...new Set(youtubeUrls)];
-          if (uniqueUrls.length !== youtubeUrls.length) {
-            logger.warn(`📋 Removed ${youtubeUrls.length - uniqueUrls.length} duplicate URLs from preloaded playlist "${filename}"`, null, 'PLAYLIST');
+          const uniqueUrls = [...new Set(validUrls)];
+          if (uniqueUrls.length !== validUrls.length) {
+            logger.warn(`📋 Removed ${validUrls.length - uniqueUrls.length} duplicate URLs from preloaded playlist "${filename}"`, null, 'PLAYLIST');
           }
           
           const playlistName = filename.replace('.txt', '');
@@ -4612,12 +4970,12 @@ async function preloadPlaylists() {
               name: playlistName,
               urls: uniqueUrls
             });
-            logger.success(`📋 Pre-loaded playlist "${playlistName}" with ${uniqueUrls.length} videos`, null, 'PLAYLIST');
+            logger.success(`📋 Pre-loaded playlist "${playlistName}" with ${uniqueUrls.length} URLs (including ${uniqueUrls.filter(url => url.includes('youtube.com') || url.includes('youtu.be')).length} YouTube videos)`, null, 'PLAYLIST');
           } else {
             logger.warn(`⚠️ Playlist "${playlistName}" already exists, skipping duplicate`, null, 'PLAYLIST');
           }
         } else {
-          logger.warn(`⚠️ No YouTube URLs found in ${filename}`, null, 'PLAYLIST');
+          logger.warn(`⚠️ No valid URLs found in ${filename}`, null, 'PLAYLIST');
         }
       } else {
         logger.warn(`⚠️ Could not load ${filename}: ${response.status}`, null, 'PLAYLIST');
@@ -4662,9 +5020,11 @@ function initializeMediaSystem() {
         // Set media toolbar to minimized by default
         const mediaToolbar = document.getElementById('mediaToolbar');
         if (mediaToolbar) {
+          // Start fully hidden AND minimized by default
+          mediaToolbar.style.display = 'none';
           mediaToolbar.classList.add('minimized');
           isMediaToolbarMinimized = true;
-          logger.info('📺 Media toolbar set to minimized by default');
+          logger.info('📺 Media toolbar set to hidden + minimized by default');
         }
         logger.success('🎛️ Media system initialized after DOM load', null, 'SYSTEM');
       }, 100);
@@ -4677,9 +5037,11 @@ function initializeMediaSystem() {
       // Set media toolbar to minimized by default
       const mediaToolbar = document.getElementById('mediaToolbar');
       if (mediaToolbar) {
+        // Start fully hidden AND minimized by default
+        mediaToolbar.style.display = 'none';
         mediaToolbar.classList.add('minimized');
         isMediaToolbarMinimized = true;
-        logger.info('📺 Media toolbar set to minimized by default');
+        logger.info('📺 Media toolbar set to hidden + minimized by default');
       }
       logger.success('🎛️ Media system initialized immediately', null, 'SYSTEM');
     }, 100);
@@ -4951,64 +5313,68 @@ function highlightCurrentTrack() {
       item.style.background = 'rgba(0, 0, 0, 0.6)';
   });
   
-  // Highlight the current track based on currentMusicIndex
+  // Try metadata-based highlighting first
+  if (window.currentAudio && !window.currentAudio.paused) {
+    const currentSrc = window.currentAudio.src;
+    for (const item of musicItems) {
+      // Radio items have dataset.radioUrl
+      if (item.dataset && item.dataset.type === 'radio' && item.dataset.radioUrl) {
+        if (currentSrc.includes(item.dataset.radioUrl)) {
+          item.classList.add('playing');
+          item.style.background = '#35CF3A';
+          return;
+        }
+      }
+      // File items have dataset.url
+      if (item.dataset && item.dataset.type === 'file' && item.dataset.url) {
+        // Some browsers expand relative paths; use endsWith for robustness
+        const srcLower = currentSrc.toLowerCase();
+        const urlLower = item.dataset.url.toLowerCase();
+        if (srcLower.endsWith(urlLower)) {
+          item.classList.add('playing');
+          item.style.background = '#35CF3A';
+          return;
+        }
+      }
+    }
+  }
+  
+  // Fallback to index-based highlighting if metadata match not found
   if (musicPlaylist.length > 0 && currentMusicIndex >= 0 && currentMusicIndex < musicItems.length) {
     const currentItem = musicItems[currentMusicIndex];
     if (currentItem) {
       currentItem.classList.add('playing');
       currentItem.style.background = '#35CF3A';
-
     }
-  }
-  
-  // Also check for radio streams that might be playing but not in playlist
-  if (window.currentAudio && !window.currentAudio.paused) {
-    musicItems.forEach((item, index) => {
-      const itemOnclick = item.getAttribute('onclick') || '';
-      
-      // For radio streams not in playlist
-      if (itemOnclick.includes('playRadioStream') && window.currentAudio.src) {
-        const currentSrc = window.currentAudio.src;
-        if (itemOnclick.includes(currentSrc)) {
-          item.classList.add('playing');
-          item.style.background = '#35CF3A';
-
-        }
-      }
-      
-      // For radio stations loaded via input panel
-      if (window.currentRadioUrl && window.currentAudio.src) {
-        const currentSrc = window.currentAudio.src;
-        if (currentSrc === window.currentRadioUrl || currentSrc.includes(window.currentRadioUrl)) {
-          // Create a temporary radio item display if not already in list
-          const radioText = item.textContent || '';
-          if (radioText.includes('📻') || radioText.includes('Radio') || itemOnclick.includes('playRadioStream')) {
-          item.classList.add('playing');
-          item.style.background = '#35CF3A';
-
-          }
-        }
-      }
-    });
   }
 }
 
 // Get a unique identifier for the currently playing track/radio
 function getCurrentTrackId() {
-  // For radio from input panel
-  if (window.currentRadioUrl) {
-    return `radio_${window.currentRadioUrl}`;
-  }
-  
-  // For playlist tracks
-  if (musicPlaylist.length > 0 && currentMusicIndex >= 0) {
-    const currentTrack = musicPlaylist[currentMusicIndex];
-    return `track_${currentTrack.url}_${currentTrack.title}`;
-  }
-  
-  // For audio source
-  if (window.currentAudio && window.currentAudio.src) {
-    return `audio_${window.currentAudio.src}`;
+  try {
+    // For radio from input panel
+    if (window.currentRadioUrl) {
+      return `radio_${window.currentRadioUrl}`;
+    }
+    
+    // For playlist tracks (guard against race conditions)
+    if (Array.isArray(musicPlaylist)) {
+      const index = (typeof currentMusicIndex === 'number') ? currentMusicIndex : -1;
+      if (index >= 0 && index < musicPlaylist.length) {
+        const currentTrack = musicPlaylist[index];
+        if (currentTrack && currentTrack.url) {
+          const title = (typeof currentTrack.title === 'string') ? currentTrack.title : '';
+          return `track_${currentTrack.url}_${title}`;
+        }
+      }
+    }
+    
+    // For audio source
+    if (window.currentAudio && window.currentAudio.src) {
+      return `audio_${window.currentAudio.src}`;
+    }
+  } catch (e) {
+    // Non-fatal: fall through to default
   }
   
   return 'default';
@@ -5118,6 +5484,10 @@ function startMusicVisualizer() {
   
   // Generate unique colors for each track/radio URL
   const currentTrackId = getCurrentTrackId();
+  if (!currentTrackId) {
+    // Defensive: if something went wrong, bail gracefully
+    return;
+  }
   
   // Check if we need new colors (new track or first time)
   if (!window.lastTrackId || window.lastTrackId !== currentTrackId) {
@@ -5291,17 +5661,23 @@ function toggleProjectMPanel() {
             // Show the panel
             panel.style.display = 'block';
             
-            // Initialize local visualizer if not already done
-            if (typeof window.LocalVisualizer !== 'undefined' && !window.LocalVisualizer.canvas) {
-                // Module system handles initialization
-                console.log('🎨 Module-based visualizer ready');
-            }
+            // Auto-load local presets when panel is opened
+            autoLoadLocalPresets();
             
-            logger.info('🎨 Local visualization panel opened');
+            logger.info('🎨 Music visualization panel opened');
         }
         
     } catch (error) {
         console.error('Failed to toggle ProjectM panel:', error);
+    }
+}
+
+// Auto-load local presets when panel is opened
+function autoLoadLocalPresets() {
+    // Check if presets are already loaded
+    if (butterchurnPresets.length === 0) {
+        console.log('🔄 Auto-loading local presets...');
+        loadLocalPresets();
     }
 }
 
@@ -5319,14 +5695,23 @@ function closeProjectMPanel() {
             panel.style.display = 'none';
         }
         
-        // Hide control buttons
-        hideRetryButton();
-        hideLocalEffectButton();
+        // Hide control buttons - check if functions exist before calling
+        if (typeof hideRetryButton === 'function') {
+            hideRetryButton();
+        }
+        if (typeof hideLocalEffectButton === 'function') {
+            hideLocalEffectButton();
+        }
         
         logger.info('🎨 Visualization panel closed');
         
     } catch (error) {
         console.error('Failed to close ProjectM panel:', error);
+        // Ensure panel is hidden even if there's an error
+        const panel = document.getElementById('projectmPanel');
+        if (panel) {
+            panel.style.display = 'none';
+        }
     }
 }
 
@@ -5403,90 +5788,100 @@ let butterchurnPresets = [];
 let currentPresetIndex = 0;
 let autoPresetTimer = null;
 let isVisualizerRunning = false;
+let globalVisualizerState = {
+    isRunning: false,
+    type: null, // 'butterchurn' or 'local'
+    instance: null
+};
+
+function toggleButterchurn() {
+    if (globalVisualizerState.isRunning) {
+        // Stop visualizer
+        if (globalVisualizerState.instance && typeof globalVisualizerState.instance.stop === 'function') {
+            globalVisualizerState.instance.stop();
+        }
+        if (typeof window.LocalVisualizer !== 'undefined') {
+            window.LocalVisualizer.stop();
+        }
+        
+        // Reset global state
+        globalVisualizerState.isRunning = false;
+        globalVisualizerState.type = null;
+        globalVisualizerState.instance = null;
+        isVisualizerRunning = false;
+        
+        // Update button text and status
+        const toggleBtn = document.getElementById('toggleVisualizerBtn');
+        if (toggleBtn) toggleBtn.textContent = '🎵 Start Visualizer';
+        
+        const presetStatus = document.getElementById('presetStatus');
+        if (presetStatus) presetStatus.textContent = 'Stopped';
+        
+        logger.info('🎨 Visualizer stopped');
+    } else {
+        // Start visualizer
+        try {
+            const presetStatus = document.getElementById('presetStatus');
+            if (presetStatus) presetStatus.textContent = 'Using local presets only';
+            if (typeof window.LocalVisualizer !== 'undefined') {
+                window.LocalVisualizer.start();
+                
+                // Update global state
+                globalVisualizerState.isRunning = true;
+                globalVisualizerState.type = 'local';
+                globalVisualizerState.instance = window.LocalVisualizer;
+                isVisualizerRunning = true;
+                
+                updatePresetSelect();
+                updatePresetInfo();
+                updateCurrentPreset();
+                
+                // Update button text
+                const toggleBtn = document.getElementById('toggleVisualizerBtn');
+                if (toggleBtn) toggleBtn.textContent = '⏹️ Stop Visualizer';
+                
+                // Ensure presets are loaded and dropdown is populated
+                if (window.LocalVisualizer && window.LocalVisualizer.presets) {
+                    console.log(`🎯 Loaded ${window.LocalVisualizer.presets.length} presets:`, window.LocalVisualizer.presets.map(p => p.name));
+                }
+                
+                logger.info('🎨 Started LocalVisualizer (Butterchurn disabled)');
+            }
+        } catch (e) {
+            console.error('Failed to start LocalVisualizer:', e);
+        }
+    }
+}
 
 function startButterchurn() {
+    // Temporarily disable Butterchurn; use LocalVisualizer only
     try {
-        // Check if local visualizer is available
-        if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.isRunning === false) {
-            window.LocalVisualizer.start();
-            isVisualizerRunning = true;
-            logger.info('🎬 Local visualizer started');
-            return;
-        }
-        
-        // If local visualizer is already running, stop it
-        if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.isRunning) {
-            window.LocalVisualizer.stop();
-            isVisualizerRunning = false;
-            logger.info('⏹️ Local visualizer stopped');
-            return;
-        }
-        
-        // Initialize local visualizer if not available
+        const presetStatus = document.getElementById('presetStatus');
+        if (presetStatus) presetStatus.textContent = 'Using local presets only';
         if (typeof window.LocalVisualizer !== 'undefined') {
-            // Module system handles initialization
             window.LocalVisualizer.start();
             isVisualizerRunning = true;
-            logger.info('🎬 Local visualizer started');
-        } else {
-            // Wait for visualizer to be ready
-            logger.info('⏳ Waiting for visualizer to be ready...');
-            window.addEventListener('visualizerReady', () => {
-                logger.info('🎬 Visualizer ready, starting now...');
-                if (typeof window.LocalVisualizer !== 'undefined') {
-                    window.LocalVisualizer.start();
-                    isVisualizerRunning = true;
-                    logger.info('🎬 Local visualizer started');
-                }
-            }, { once: true });
+            updatePresetSelect();
+            updatePresetInfo();
+            updateCurrentPreset();
+            logger.info('🎨 Started LocalVisualizer (Butterchurn disabled)');
         }
-        
-    } catch (error) {
-        console.error('Failed to start local visualizer:', error);
-        logger.error('Failed to start local visualizer: ' + error.message);
+    } catch (e) {
+        console.error('Failed to start LocalVisualizer:', e);
     }
 }
 
 function initializeButterchurn() {
-    try {
-        // Check if Butterchurn is already available
-        if (typeof butterchurn !== 'undefined') {
-            createButterchurnVisualizer();
-            return;
-        }
-        
-        // Use dynamic loading system
-        console.log('🔄 Loading Butterchurn dynamically...');
-        
-        const presetStatus = document.getElementById('presetStatus');
-        if (presetStatus) presetStatus.textContent = 'Loading Butterchurn...';
-        
-        // Load Butterchurn core first
-        window.loadButterchurnDynamically()
-            .then(() => {
-                console.log('✅ Butterchurn core loaded successfully');
-                // Then load presets
-                return window.loadButterchurnPresetsDynamically();
-            })
-            .then(() => {
-                console.log('✅ Butterchurn presets loaded successfully');
-                if (presetStatus) presetStatus.textContent = 'Butterchurn loaded';
-                // Create visualizer
-                createButterchurnVisualizer();
-            })
-            .catch((error) => {
-                console.error('❌ Failed to load Butterchurn:', error);
-                if (presetStatus) presetStatus.textContent = 'CDN loading failed';
-                showRetryButton();
-                // Fallback to local visualization system
-                initializeLocalFallback();
-            });
-        
-    } catch (error) {
-        console.error('Failed to initialize Butterchurn:', error);
-        const presetStatus = document.getElementById('presetStatus');
-        if (presetStatus) presetStatus.textContent = 'Initialization failed';
-        initializeLocalFallback();
+    // Disabled; always use local presets
+    const presetStatus = document.getElementById('presetStatus');
+    if (presetStatus) presetStatus.textContent = 'Ready - Click Start Visualizer to begin';
+    
+    // Don't auto-start, just prepare the presets
+    if (typeof window.LocalVisualizer !== 'undefined') {
+        updatePresetSelect();
+        updatePresetInfo();
+        updateCurrentPreset();
+        console.log('🎨 LocalVisualizer ready - not auto-started');
     }
 }
 
@@ -5496,6 +5891,18 @@ function createButterchurnVisualizer() {
         if (!canvas) {
             throw new Error('Canvas not found');
         }
+        
+        // Check if Butterchurn is actually available
+        if (typeof butterchurn === 'undefined') {
+            throw new Error('Butterchurn library not loaded');
+        }
+        
+        // Check if the createVisualizer method exists
+        if (typeof butterchurn.createVisualizer !== 'function') {
+            throw new Error('Butterchurn.createVisualizer is not a function - version compatibility issue');
+        }
+        
+        console.log('🎨 Creating Butterchurn visualizer with:', butterchurn);
         
         // Create audio context
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -5523,238 +5930,45 @@ function createButterchurnVisualizer() {
         
         // Hide local effect button since Butterchurn is working
         hideLocalEffectButton();
+
+        // Start rendering immediately
+        isVisualizerRunning = true;
+        startRenderLoop();
         
     } catch (error) {
         console.error('Failed to create Butterchurn visualizer:', error);
-        document.getElementById('presetStatus').textContent = 'Visualizer creation failed';
+        const presetStatus = document.getElementById('presetStatus');
+        if (presetStatus) presetStatus.textContent = 'Visualizer creation failed - using fallback';
+        
+        // Try to use local visualizer as fallback
         initializeLocalFallback();
     }
 }
 
 function initializeLocalFallback() {
     try {
-        console.log('🔄 Initializing enhanced local fallback visualization system');
+        console.log('🔄 Initializing local visualization fallback...');
         
-        const canvas = document.getElementById('butterchurnCanvas');
-        if (!canvas) {
-            console.error('Canvas element not found');
-            return;
+        // Check if local visualizer is available
+        if (typeof window.LocalVisualizer !== 'undefined') {
+            console.log('✅ Local visualizer available as fallback');
+            const presetStatus = document.getElementById('presetStatus');
+            if (presetStatus) presetStatus.textContent = 'Using local visualizer';
+        } else {
+            console.log('⚠️ Local visualizer not available, showing error message');
+            const presetStatus = document.getElementById('presetStatus');
+            if (presetStatus) presetStatus.textContent = 'Visualization unavailable';
         }
         
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-            console.error('Canvas 2D context not available');
-            return;
+        // Show local effect button if available
+        if (typeof showLocalEffectButton === 'function') {
+            showLocalEffectButton();
         }
-        
-        // Safely update UI elements if they exist
-        const presetStatus = document.getElementById('presetStatus');
-        const currentPreset = document.getElementById('currentPreset');
-        const totalPresets = document.getElementById('totalPresets');
-        
-        if (presetStatus) presetStatus.textContent = 'Using enhanced local fallback';
-        if (currentPreset) currentPreset.textContent = 'Enhanced Local Fallback';
-        if (totalPresets) totalPresets.textContent = '5 Effects';
-        
-        // Create enhanced local fallback visualizer with multiple preset-like effects
-        const localViz = {
-            canvas: canvas,
-            ctx: ctx,
-            isRunning: false,
-            time: 0,
-            currentEffect: 0,
-            effects: [
-                'wavePattern',
-                'particleSystem', 
-                'circularRings',
-                'spectrumBars',
-                'geometricShapes'
-            ],
-            
-            start: function() {
-                this.isRunning = true;
-                this.render();
-            },
-            
-            stop: function() {
-                this.isRunning = false;
-            },
-            
-            nextEffect: function() {
-                this.currentEffect = (this.currentEffect + 1) % this.effects.length;
-                this.time = 0; // Reset time for new effect
-                console.log(`🎨 Local effect: ${this.effects[this.currentEffect]}`);
-            },
-            
-            render: function() {
-                if (!this.isRunning) return;
-                
-                const width = this.canvas.width;
-                const height = this.canvas.height;
-                
-                // Clear canvas with fade effect
-                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-                this.ctx.fillRect(0, 0, width, height);
-                
-                // Render current effect
-                switch(this.effects[this.currentEffect]) {
-                    case 'wavePattern':
-                        this.renderWavePattern(width, height);
-                        break;
-                    case 'particleSystem':
-                        this.renderParticleSystem(width, height);
-                        break;
-                    case 'circularRings':
-                        this.renderCircularRings(width, height);
-                        break;
-                    case 'spectrumBars':
-                        this.renderSpectrumBars(width, height);
-                        break;
-                    case 'geometricShapes':
-                        this.renderGeometricShapes(width, height);
-                        break;
-                }
-                
-                this.time += 0.02;
-                
-                // Auto-switch effects every 10 seconds
-                if (Math.floor(this.time * 50) % 500 === 0) {
-                    this.nextEffect();
-                }
-                
-                requestAnimationFrame(() => this.render());
-            },
-            
-            renderWavePattern: function(width, height) {
-                // Complex wave pattern with multiple frequencies
-                this.ctx.strokeStyle = `hsl(${(this.time * 50) % 360}, 70%, 60%)`;
-                this.ctx.lineWidth = 3;
-                this.ctx.beginPath();
-                
-                for (let x = 0; x < width; x += 2) {
-                    const progress = x / width;
-                    const wave1 = Math.sin(this.time + progress * Math.PI * 4) * 50;
-                    const wave2 = Math.sin(this.time * 0.7 + progress * Math.PI * 8) * 30;
-                    const wave3 = Math.sin(this.time * 0.5 + progress * Math.PI * 2) * 20;
-                    const wave4 = Math.sin(this.time * 0.3 + progress * Math.PI * 12) * 15;
-                    
-                    const y = height / 2 + wave1 + wave2 + wave3 + wave4;
-                    if (x === 0) {
-                        this.ctx.moveTo(x, y);
-                    } else {
-                        this.ctx.lineTo(x, y);
-                    }
-                }
-                
-                this.ctx.stroke();
-            },
-            
-            renderParticleSystem: function(width, height) {
-                // Dynamic particle system with physics-like behavior
-                for (let i = 0; i < 30; i++) {
-                    const angle = (i / 30) * Math.PI * 2 + this.time * 0.5;
-                    const radius = 80 + Math.sin(this.time * 2 + i * 0.5) * 60;
-                    const x = width / 2 + Math.cos(angle) * radius;
-                    const y = height / 2 + Math.sin(angle) * radius;
-                    const size = 4 + Math.sin(this.time * 3 + i * 0.3) * 4;
-                    
-                    // Add velocity effect
-                    const velocityX = Math.sin(this.time + i * 0.2) * 2;
-                    const velocityY = Math.cos(this.time + i * 0.2) * 2;
-                    
-                    this.ctx.fillStyle = `hsl(${(i * 12 + this.time * 30) % 360}, 80%, 70%)`;
-                    this.ctx.beginPath();
-                    this.ctx.arc(x + velocityX, y + velocityY, size, 0, Math.PI * 2);
-                    this.ctx.fill();
-                }
-            },
-            
-            renderCircularRings: function(width, height) {
-                // Expanding circular rings with ripple effects
-                const centerX = width / 2;
-                const centerY = height / 2;
-                
-                for (let ring = 0; ring < 5; ring++) {
-                    const ringRadius = (this.time * 20 + ring * 40) % (Math.max(width, height) / 2);
-                    const ringOpacity = Math.max(0, 1 - (ringRadius / (Math.max(width, height) / 2)));
-                    const ringWidth = 3 + Math.sin(this.time * 2 + ring) * 2;
-                    
-                    this.ctx.strokeStyle = `hsla(${(this.time * 100 + ring * 60) % 360}, 80%, 60%, ${ringOpacity})`;
-                    this.ctx.lineWidth = ringWidth;
-                    this.ctx.beginPath();
-                    this.ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
-                    this.ctx.stroke();
-                }
-            },
-            
-            renderSpectrumBars: function(width, height) {
-                // Audio spectrum-like bars with wave motion
-                const barCount = 20;
-                const barWidth = width / barCount;
-                
-                for (let i = 0; i < barCount; i++) {
-                    const x = i * barWidth;
-                    const progress = i / barCount;
-                    
-                    const barHeight = 20 + Math.sin(this.time * 2 + progress * Math.PI * 4) * 80;
-                    const barY = height - barHeight;
-                    
-                    this.ctx.fillStyle = `hsl(${(progress * 360 + this.time * 100) % 360}, 80%, 60%)`;
-                    this.ctx.fillRect(x + 2, barY, barWidth - 4, barHeight);
-                }
-            },
-            
-            renderGeometricShapes: function(width, height) {
-                // Rotating geometric shapes with color evolution
-                const centerX = width / 2;
-                const centerY = height / 2;
-                const shapeCount = 6;
-                
-                for (let i = 0; i < shapeCount; i++) {
-                    const angle = (i / shapeCount) * Math.PI * 2 + this.time;
-                    const radius = 60 + Math.sin(this.time * 1.5 + i * 0.5) * 20;
-                    const x = centerX + Math.cos(angle) * radius;
-                    const y = centerY + Math.sin(angle) * radius;
-                    const size = 15 + Math.sin(this.time * 2 + i * 0.3) * 8;
-                    
-                    this.ctx.fillStyle = `hsl(${(i * 60 + this.time * 80) % 360}, 80%, 60%)`;
-                    this.ctx.beginPath();
-                    
-                    // Draw different shapes
-                    if (i % 3 === 0) {
-                        // Circle
-                        this.ctx.arc(x, y, size, 0, Math.PI * 2);
-                    } else if (i % 3 === 1) {
-                        // Square
-                        this.ctx.rect(x - size, y - size, size * 2, size * 2);
-                    } else {
-                        // Triangle
-                        this.ctx.moveTo(x, y - size);
-                        this.ctx.lineTo(x - size, y + size);
-                        this.ctx.lineTo(x + size, y + size);
-                        this.ctx.closePath();
-                    }
-                    
-                    this.ctx.fill();
-                }
-            }
-        };
-        
-        // Store local visualizer
-        window.localVisualizer = localViz;
-        
-        // Show local effect button
-        showLocalEffectButton();
-        
-        // Start local visualizer
-        localViz.start();
-        
-        logger.info('🎨 Enhanced local fallback visualization system initialized');
         
     } catch (error) {
-        console.error('Failed to initialize enhanced local fallback:', error);
+        console.error('Failed to initialize local fallback:', error);
         const presetStatus = document.getElementById('presetStatus');
-        if (presetStatus) presetStatus.textContent = 'All systems failed';
+        if (presetStatus) presetStatus.textContent = 'Fallback failed';
     }
 }
 
@@ -5830,15 +6044,23 @@ function loadButterchurnScripts() {
 
 function connectCurrentAudio() {
     if (!butterchurnCtx || !butterchurnAnalyser) return;
-    
     try {
-        // Connect to current audio element if playing
-        if (window.currentAudio && !window.currentAudio.paused) {
-            const source = butterchurnCtx.createMediaElementSource(window.currentAudio);
-            const gain = butterchurnCtx.createGain();
-            source.connect(gain);
-            gain.connect(butterchurnAnalyser);
-            gain.connect(butterchurnCtx.destination); // Route to speakers
+        if (window.currentAudio) {
+            // Resume context if suspended
+            if (butterchurnCtx.state === 'suspended') {
+                butterchurnCtx.resume().catch(() => {});
+            }
+            // Reuse existing source if bound to same element
+            if (!butterchurnMediaSource || butterchurnMediaSource.mediaElement !== window.currentAudio) {
+                // Disconnect previous
+                try { butterchurnMediaSource && butterchurnMediaSource.disconnect(); } catch {}
+                const src = butterchurnCtx.createMediaElementSource(window.currentAudio);
+                butterchurnMediaSource = src;
+                const gain = butterchurnCtx.createGain();
+                src.connect(gain);
+                gain.connect(butterchurnAnalyser);
+                gain.connect(butterchurnCtx.destination);
+            }
             logger.info('🎵 Connected to current audio');
         }
     } catch (error) {
@@ -5907,65 +6129,133 @@ function updatePresetSelect() {
     // Clear existing options
     presetSelect.innerHTML = '';
     
-    // Add local preset options
-    if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.presets) {
-        window.LocalVisualizer.presets.forEach((preset, index) => {
+    if (butterchurnPresets && butterchurnPresets.length) {
+        butterchurnPresets.forEach((preset, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = preset.name;
+            presetSelect.appendChild(option);
+        });
+        presetSelect.value = String(currentPresetIndex);
+    } else if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.presets) {
+        // Ensure we have the latest presets
+        const presets = window.LocalVisualizer.presets;
+        console.log(`🎯 Populating dropdown with ${presets.length} presets:`, presets.map(p => p.name));
+        
+        presets.forEach((preset, index) => {
             const option = document.createElement('option');
             option.value = index;
             option.textContent = preset.name;
             presetSelect.appendChild(option);
         });
         
-        // Set current selection
-        presetSelect.value = window.LocalVisualizer.currentPreset;
+        if (typeof window.LocalVisualizer.currentPreset === 'number') {
+            presetSelect.value = window.LocalVisualizer.currentPreset;
+        }
     }
+    
+    // Log the final dropdown state
+    console.log(`📋 Preset dropdown populated with ${presetSelect.options.length} options`);
 }
 
 function updatePresetInfo() {
-    if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.presets) {
-        const totalPresets = document.getElementById('totalPresets');
-        if (totalPresets) {
-            totalPresets.textContent = window.LocalVisualizer.presets.length;
-        }
+    const totalPresets = document.getElementById('totalPresets');
+    if (!totalPresets) return;
+    if (butterchurnPresets && butterchurnPresets.length) {
+        totalPresets.textContent = String(butterchurnPresets.length);
+    } else if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.presets) {
+        totalPresets.textContent = String(window.LocalVisualizer.presets.length);
+    } else {
+        totalPresets.textContent = '0';
     }
 }
 
 function updateCurrentPreset() {
-    if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.presets) {
-        const currentPreset = document.getElementById('currentPreset');
-        if (currentPreset) {
-            currentPreset.textContent = window.LocalVisualizer.presets[window.LocalVisualizer.currentPreset].name;
-        }
+    const currentPreset = document.getElementById('currentPreset');
+    if (!currentPreset) return;
+    if (butterchurnPresets && butterchurnPresets.length && typeof currentPresetIndex === 'number') {
+        currentPreset.textContent = butterchurnPresets[currentPresetIndex]?.name || 'None';
+    } else if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.presets) {
+        currentPreset.textContent = window.LocalVisualizer.presets[window.LocalVisualizer.currentPreset]?.name || 'None';
+    } else {
+        currentPreset.textContent = 'None';
     }
 }
 
 function nextPreset() {
-    if (typeof window.LocalVisualizer !== 'undefined') {
+    if (butterchurnViz && butterchurnPresets && butterchurnPresets.length) {
+        const blend = Number(document.getElementById('blendSec')?.value || 2);
+        currentPresetIndex = (currentPresetIndex + 1) % butterchurnPresets.length;
+        butterchurnViz.loadPreset(butterchurnPresets[currentPresetIndex].obj, blend);
+        updateCurrentPreset();
+        logger.info('⏭️ Next Butterchurn preset');
+    } else if (typeof window.LocalVisualizer !== 'undefined') {
         window.LocalVisualizer.next();
+        updateCurrentPreset();
         logger.info('⏭️ Next local preset');
     }
 }
 
 function previousPreset() {
-    if (typeof window.LocalVisualizer !== 'undefined') {
+    if (butterchurnViz && butterchurnPresets && butterchurnPresets.length) {
+        const blend = Number(document.getElementById('blendSec')?.value || 2);
+        currentPresetIndex = (currentPresetIndex - 1 + butterchurnPresets.length) % butterchurnPresets.length;
+        butterchurnViz.loadPreset(butterchurnPresets[currentPresetIndex].obj, blend);
+        updateCurrentPreset();
+        logger.info('⏮️ Previous Butterchurn preset');
+    } else if (typeof window.LocalVisualizer !== 'undefined') {
         window.LocalVisualizer.previous();
+        updateCurrentPreset();
         logger.info('⏮️ Previous local preset');
     }
 }
 
 function randomPreset() {
-    if (typeof window.LocalVisualizer !== 'undefined') {
+    if (butterchurnViz && butterchurnPresets && butterchurnPresets.length) {
+        const blend = Number(document.getElementById('blendSec')?.value || 2);
+        let n = currentPresetIndex;
+        if (butterchurnPresets.length > 1) {
+            while (n === currentPresetIndex) {
+                n = (Math.random() * butterchurnPresets.length) | 0;
+            }
+        }
+        currentPresetIndex = n;
+        butterchurnViz.loadPreset(butterchurnPresets[currentPresetIndex].obj, blend);
+        updateCurrentPreset();
+        logger.info('🎲 Random Butterchurn preset');
+    } else if (typeof window.LocalVisualizer !== 'undefined') {
         window.LocalVisualizer.random();
-        logger.info('🎲 Random preset');
+        updateCurrentPreset();
+        logger.info('🎲 Random local preset');
     }
 }
 
 function selectPreset(value) {
-    if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.presets) {
-        const index = parseInt(value);
+    const index = parseInt(value);
+    if (butterchurnViz && butterchurnPresets && butterchurnPresets.length) {
+        if (index >= 0 && index < butterchurnPresets.length) {
+            const blend = Number(document.getElementById('blendSec')?.value || 2);
+            currentPresetIndex = index;
+            butterchurnViz.loadPreset(butterchurnPresets[currentPresetIndex].obj, blend);
+            updateCurrentPreset();
+            logger.info(`🎯 Selected Butterchurn preset: ${butterchurnPresets[index].name}`);
+        }
+    } else if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.presets) {
         if (index >= 0 && index < window.LocalVisualizer.presets.length) {
+            // Update the current preset
             window.LocalVisualizer.currentPreset = index;
+            
+            // Force a render update to show the new preset
+            if (window.LocalVisualizer.isRunning) {
+                // Trigger a render to show the new preset immediately
+                window.LocalVisualizer.render();
+            }
+            
+            // Update UI
             window.LocalVisualizer.updatePresetInfo();
+            updateCurrentPreset();
+            
+            console.log(`🎯 Selected preset: ${window.LocalVisualizer.presets[index].name} (type: ${window.LocalVisualizer.presets[index].type})`);
             logger.info(`🎯 Selected preset: ${window.LocalVisualizer.presets[index].name}`);
         }
     }
@@ -6179,6 +6469,13 @@ function showRetryButton() {
     }
 }
 
+function hideRetryButton() {
+    const retryBtn = document.getElementById('retryBtn');
+    if (retryBtn) {
+        retryBtn.style.display = 'none';
+    }
+}
+
 function nextLocalEffect() {
     if (window.localVisualizer) {
         window.localVisualizer.nextEffect();
@@ -6277,3 +6574,226 @@ function connectLocalVisualizerToAudio(audioElement) {
         console.error('Failed to connect local visualizer to audio:', error);
     }
 }
+
+// ===== BUTTERCHURN CDN LOADING FUNCTIONS =====
+window.loadButterchurnDynamically = function() {
+    return new Promise((resolve, reject) => {
+        console.log('🔄 Loading Butterchurn from CDN...');
+        
+        // Multiple CDN sources with specific versions for compatibility
+        const cdnSources = [
+            'https://unpkg.com/butterchurn@2.6.7/dist/butterchurn.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/butterchurn/2.6.7/butterchurn.min.js',
+            'https://cdn.jsdelivr.net/npm/butterchurn@2.6.7/dist/butterchurn.min.js',
+            'https://unpkg.com/butterchurn@latest/dist/butterchurn.min.js',
+            'https://cdn.jsdelivr.net/npm/butterchurn@latest/dist/butterchurn.min.js'
+        ];
+        
+        let currentSourceIndex = 0;
+        
+        function tryNextSource() {
+            if (currentSourceIndex >= cdnSources.length) {
+                reject(new Error('All CDN sources failed'));
+                return;
+            }
+            
+            const source = cdnSources[currentSourceIndex];
+            console.log(`🔄 Trying CDN source ${currentSourceIndex + 1}: ${source}`);
+            
+            const script = document.createElement('script');
+            script.src = source;
+            script.onload = () => {
+                console.log(`✅ Butterchurn loaded successfully from: ${source}`);
+                
+                // Wait a moment for the script to initialize
+                setTimeout(() => {
+                    if (typeof butterchurn !== 'undefined') {
+                        console.log('✅ Butterchurn object available:', butterchurn);
+                        resolve();
+                    } else {
+                        console.warn('⚠️ Butterchurn loaded but object not available, trying next source');
+                        currentSourceIndex++;
+                        tryNextSource();
+                    }
+                }, 100);
+            };
+            script.onerror = () => {
+                console.warn(`⚠️ Failed to load from: ${source}`);
+                currentSourceIndex++;
+                tryNextSource();
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        tryNextSource();
+    });
+};
+
+window.loadButterchurnPresetsDynamically = function() {
+    return new Promise((resolve, reject) => {
+        console.log('🔄 Loading Butterchurn presets (CDN)...');
+        
+        const presetSources = [
+            'https://unpkg.com/butterchurn-presets@2.4.7/dist/butterchurn-presets.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/butterchurn-presets/2.4.7/butterchurn-presets.min.js',
+            'https://cdn.jsdelivr.net/npm/butterchurn-presets@2.4.7/dist/butterchurn-presets.min.js'
+        ];
+        
+        let idx = 0;
+        
+        function tryNext() {
+            if (idx >= presetSources.length) {
+                return reject(new Error('All butterchurn-presets CDN sources failed'));
+            }
+            const src = presetSources[idx];
+            console.log(`🔄 Trying presets CDN ${idx + 1}: ${src}`);
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = () => {
+                // Verify global is present
+                setTimeout(() => {
+                    if (window.butterchurnPresets && typeof window.butterchurnPresets.getPresets === 'function') {
+                        console.log('✅ butterchurn-presets loaded');
+                        resolve();
+                    } else {
+                        console.warn('⚠️ Presets script loaded but API missing, trying next');
+                        idx += 1;
+                        tryNext();
+                    }
+                }, 100);
+            };
+            script.onerror = () => {
+                console.warn(`⚠️ Failed to load presets from ${src}`);
+                idx += 1;
+                tryNext();
+            };
+            document.head.appendChild(script);
+        }
+        
+        tryNext();
+    });
+};
+
+// ===== UNIFIED LOCAL PRESET LOADING SYSTEM =====
+async function loadLocalPresets() {
+    try {
+        console.log('🏠 Loading all available local presets...');
+        
+        // Update status
+        const presetStatus = document.getElementById('presetStatus');
+        if (presetStatus) presetStatus.textContent = 'Loading local presets...';
+        
+        // Stop any currently running visualizers to prevent conflicts
+        if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.isRunning) {
+            window.LocalVisualizer.stop();
+        }
+        if (butterchurnViz) {
+            butterchurnViz.disconnect();
+            butterchurnViz = null;
+        }
+        
+        // Clear existing presets
+        butterchurnPresets = [];
+        currentPresetIndex = 0;
+        
+        // Load all available preset files
+        const presetFiles = [
+            'presets/effects/aurora-borealis.js',
+            'presets/effects/fractal-universe.js',
+            'presets/effects/holographic-display.js',
+            'presets/effects/image-collage-visual.js',
+            'presets/effects/matrix-rain-visual.js',
+            'presets/effects/milklike-elephant.js',
+            'presets/effects/my-cool-effect.js',
+            'presets/effects/neon-pulse.js',
+            'presets/effects/neural-network.js',
+            'presets/effects/quantum-plasma-storm.js',
+            'presets/effects/rainbow-spiral-GL.js',
+            'presets/effects/solar-flare.js',
+            'presets/effects/spirograph-orbital.js'
+        ];
+        
+        console.log(`📁 Found ${presetFiles.length} preset files to load`);
+        
+        // Load each preset file
+        for (const presetFile of presetFiles) {
+            try {
+                const response = await fetch(presetFile);
+                if (response.ok) {
+                    const presetCode = await response.text();
+                    
+                    // Create a preset object
+                    const preset = {
+                        name: presetFile.split('/').pop().replace('.js', ''),
+                        file: presetFile,
+                        code: presetCode,
+                        type: 'local'
+                    };
+                    
+                    butterchurnPresets.push(preset);
+                    console.log(`✅ Loaded preset: ${preset.name}`);
+                } else {
+                    console.warn(`⚠️ Failed to load preset: ${presetFile} (${response.status})`);
+                }
+            } catch (error) {
+                console.warn(`⚠️ Error loading preset ${presetFile}:`, error.message);
+            }
+        }
+        
+        // Also check if LocalVisualizer has presets and merge them
+        if (typeof window.LocalVisualizer !== 'undefined' && window.LocalVisualizer.presets) {
+            console.log(`🔄 Merging ${window.LocalVisualizer.presets.length} LocalVisualizer presets`);
+            
+            window.LocalVisualizer.presets.forEach((preset, index) => {
+                const mergedPreset = {
+                    name: preset.name || `Local-${index + 1}`,
+                    source: 'LocalVisualizer',
+                    index: index,
+                    type: 'local-module'
+                };
+                butterchurnPresets.push(mergedPreset);
+            });
+        }
+        
+        console.log(`🎯 Total presets loaded: ${butterchurnPresets.length}`);
+        
+        // Update UI
+        updatePresetSelect();
+        updatePresetInfo();
+        
+        // Update status
+        if (presetStatus) {
+            presetStatus.textContent = `Loaded ${butterchurnPresets.length} local presets`;
+        }
+        
+        // Show success message
+        logger.success(`🏠 Successfully loaded ${butterchurnPresets.length} local presets`);
+        
+        // Auto-start visualizer if presets were loaded
+        if (butterchurnPresets.length > 0) {
+            startButterchurn();
+        }
+        
+    } catch (error) {
+        console.error('❌ Failed to load local presets:', error);
+        const presetStatus = document.getElementById('presetStatus');
+        if (presetStatus) {
+            presetStatus.textContent = 'Failed to load presets';
+        }
+        logger.error('Failed to load local presets: ' + error.message);
+    }
+}
+
+// Retry Butterchurn loading
+function retryButterchurn() {
+    // Disabled; keep using local presets only
+    const presetStatus = document.getElementById('presetStatus');
+    if (presetStatus) presetStatus.textContent = 'Butterchurn disabled - using local presets';
+    if (typeof hideRetryButton === 'function') hideRetryButton();
+}
+
+// Make functions globally available
+window.loadLocalPresets = loadLocalPresets;
+window.autoLoadLocalPresets = autoLoadLocalPresets;
+window.retryButterchurn = retryButterchurn;

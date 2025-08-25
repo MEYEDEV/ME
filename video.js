@@ -81,7 +81,7 @@ function videoPlayVideo(index) {
   const videoId = extractYouTubeId(url);
   
   if (videoId) {
-    // Use the working approach from the example
+    // Handle YouTube videos
     const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&controls=1&loop=0&enablejsapi=1&origin=${window.location.origin}`;
     const videoIframe = document.getElementById('videoIframe');
     if (videoIframe) {
@@ -90,7 +90,7 @@ function videoPlayVideo(index) {
       videoIframe.style.zIndex = '1';
       videoIsPlaying = true;
       updateVideoPlaylistDisplay();
-      window.videoLogger.info('🎵 Video Playing video:', { index: index + 1, total: videoPlaylist.length, videoId: videoId });
+      window.videoLogger.info('🎵 Video Playing YouTube video:', { index: index + 1, total: videoPlaylist.length, videoId: videoId });
       
       // Add event listener for iframe load to handle autoplay restrictions
       videoIframe.onload = function() {
@@ -107,53 +107,102 @@ function videoPlayVideo(index) {
       };
     }
   } else {
-    window.videoLogger.error('❌ Invalid YouTube URL:', { url: url });
+    // Handle non-YouTube URLs (webcam streams, direct video links, etc.)
+    window.videoLogger.info('🌐 Playing non-YouTube URL from playlist:', url);
+    
+    const contentType = detectContentType(url);
+    let embedUrl;
+    
+    switch(contentType) {
+      case 'video':
+        // Handle direct video streams by creating an HTML5 video player
+        const videoHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { margin: 0; padding: 0; background: black; display: flex; justify-content: center; align-items: center; height: 100vh; }
+              video { max-width: 100%; max-height: 100%; object-fit: contain; }
+            </style>
+          </head>
+          <body>
+            <video controls autoplay loop crossorigin="anonymous">
+              <source src="${url}" type="video/mp4">
+              <source src="${url}" type="video/webm">
+              <source src="${url}" type="video/ogg">
+              <source src="${url}">
+              <p>Your browser doesn't support HTML5 video. <a href="${url}">Download the video</a> instead.</p>
+            </video>
+            <script>
+              const video = document.querySelector('video');
+              video.addEventListener('loadstart', () => {
+                console.log('🎥 Video loading started');
+              });
+              video.addEventListener('error', (e) => {
+                console.error('🎥 Video error:', e);
+                document.body.innerHTML = '<div style="color: white; text-align: center; padding: 20px;">Error loading video stream. Please check the URL and try again.</div>';
+              });
+              video.addEventListener('canplay', () => {
+                console.log('🎥 Video ready to play');
+              });
+            </script>
+          </body>
+          </html>
+        `;
+        
+        const blob = new Blob([videoHtml], { type: 'text/html' });
+        embedUrl = URL.createObjectURL(blob);
+        window.videoLogger.info('🎥 Created HTML5 video player for video stream in playlist');
+        break;
+        
+      case 'website':
+      default:
+        // Handle regular websites by loading them directly in iframe
+        embedUrl = url;
+        window.videoLogger.info('🌐 Loading website directly in iframe from playlist');
+        break;
+    }
+    
+    // Load the content in the iframe
+    const videoIframe = document.getElementById('videoIframe');
+    if (videoIframe) {
+      videoIframe.src = embedUrl;
+      videoIframe.style.display = 'block';
+      videoIframe.style.zIndex = '1';
+      videoIsPlaying = true;
+      updateVideoPlaylistDisplay();
+      window.videoLogger.info('🌐 Playing non-YouTube content:', { index: index + 1, total: videoPlaylist.length, url: url });
+    }
   }
 }
 
 function extractYouTubeId(url) {
-  // Handle various YouTube URL formats
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^\s&?]+)/,
-    /youtube\.com\/embed\/([^\s&?]+)/,
-    /youtube\.com\/v\/([^\s&?]+)/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) {
-      return match[1];
-    }
-  }
-  
-  window.videoLogger.error('❌ Could not extract YouTube ID from URL:', { url: url });
-  return null;
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^\s&]+)/);
+  return match ? match[1] : null;
 }
 
-async function fetchVideoTitle(videoId) {
-  try {
-    // Use YouTube oEmbed API to get video title
-    const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      mode: 'cors' // Explicitly set CORS mode
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      window.videoLogger.info('✅ Successfully fetched video title for', { videoId: videoId, title: data.title });
-      return data.title;
-    } else {
-      window.videoLogger.warn('⚠️ YouTube API returned status:', { status: response.status, videoId: videoId });
-    }
-  } catch (error) {
-    window.videoLogger.warn('⚠️ Network error fetching video title for', { videoId: videoId, error: error.message });
-    // Don't log the full error to avoid console spam
+// Helper function to detect content type
+function detectContentType(url) {
+  // Check if it's a YouTube URL first
+  if (extractYouTubeId(url)) {
+    return 'youtube';
   }
-  return null;
+  
+  // Check if it's a direct video file
+  const videoExtensions = ['.mp4', '.webm', '.ogg', '.avi', '.mov', '.wmv', '.flv', '.m4v'];
+  const streamingFormats = ['.m3u8', '.mpd', '.f4m'];
+  const allVideoFormats = [...videoExtensions, ...streamingFormats];
+  
+  const urlLower = url.toLowerCase();
+  if (allVideoFormats.some(ext => urlLower.includes(ext))) {
+    return 'video';
+  }
+  
+  // Do not guess 'video' for generic streaming paths/domains.
+  // Only explicit file or manifest extensions should be considered video.
+  
+  // Default to website
+  return 'website';
 }
 
 // ===== VIDEO CONTROL FUNCTIONS =====

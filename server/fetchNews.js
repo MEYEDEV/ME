@@ -1,7 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const axios = require('axios');
-const FeedParser = require('feedparser-promised');
+const RSSParser = require('rss-parser');
 const cheerio = require('cheerio');
 const crypto = require('crypto');
 
@@ -98,6 +98,9 @@ class NewsSourceParser {
                 case 'url':
                     sources.push({ type: 'site', url });
                     break;
+                case 'json-file':
+                    sources.push({ type: 'json-file', url });
+                    break;
                 case 'headline':
                     if (parts.length >= 3) {
                         const title = parts.slice(1, -1).join(' ').replace(/^"|"$/g, '');
@@ -116,6 +119,9 @@ class NewsSourceParser {
                     break;
                 case 'tweets-file':
                     sources.push({ type: 'tweets-file', url });
+                    break;
+                case 'entertainment-file':
+                    sources.push({ type: 'json-file', url });
                     break;
                 case 'list':
                     const listPath = path.resolve(path.dirname(indexPath), url);
@@ -151,12 +157,13 @@ class NewsSourceParser {
 
     async fetchRSSFeed(url) {
         try {
-            const items = await FeedParser.parse(url);
-            return items.map(item => new Headline(
+            const parser = new RSSParser({ headers: { 'User-Agent': USER_AGENT } });
+            const feed = await parser.parseURL(url);
+            return (feed.items || []).map(item => new Headline(
                 item.title || 'Untitled',
                 item.link || url,
                 this.getDomain(url),
-                item.pubDate ? new Date(item.pubDate).getTime() : Date.now()
+                item.isoDate ? new Date(item.isoDate).getTime() : (item.pubDate ? new Date(item.pubDate).getTime() : Date.now())
             ));
         } catch (error) {
             console.warn(`Failed to fetch RSS feed ${url}:`, error.message);
@@ -579,6 +586,23 @@ class NewsSourceParser {
                     case 'headline':
                         headlines = [new Headline(source.title, source.url, 'manual')];
                         break;
+                    case 'json-file':
+                        try {
+                            const fullPath = path.resolve(process.cwd(), source.url);
+                            const data = JSON.parse(await fs.readFile(fullPath, 'utf8'));
+                            const items = Array.isArray(data) ? data : (Array.isArray(data.items) ? data.items : (Array.isArray(data.tweets) ? data.tweets : []));
+                            const now = Date.now();
+                            headlines = items.map(item => new Headline(
+                                item.title || `${item.hashtag || ''} @${item.username || 'user'}: ${item.comment || item.text || ''}`.trim(),
+                                item.url || (item.username ? `https://twitter.com/${item.username}` : '#'),
+                                (item.source || 'json').toString(),
+                                item.ts || now
+                            ));
+                        } catch (e) {
+                            console.warn('Failed to load JSON file source', source.url, e.message);
+                            headlines = [];
+                        }
+                        break;
                     case 'plymouth-argyle':
                         const rawHeadlines = await this.scrapePlymouthArgyleNews();
                         headlines = rawHeadlines.map(item => new Headline(
@@ -630,10 +654,34 @@ class NewsSourceParser {
             }
         }
 
-        // Sort by timestamp (newest first) and limit
-        return allHeadlines
-            .sort((a, b) => b.ts - a.ts)
-            .slice(0, opts.maxHeadlines || MAX_HEADLINES);
+        // Sort headlines with Plymouth sources first, then by timestamp
+        console.log('🔄 Sorting headlines with Plymouth priority...');
+        const sortedHeadlines = allHeadlines.sort((a, b) => {
+            // Priority 1: Plymouth sources first
+            const aIsPlymouth = a.source.includes('plymouth') || a.source.includes('pafc');
+            const bIsPlymouth = b.source.includes('plymouth') || b.source.includes('pafc');
+            
+            if (aIsPlymouth && !bIsPlymouth) {
+                console.log(`✅ Prioritizing Plymouth source: ${a.source} over ${b.source}`);
+                return -1;
+            }
+            if (!aIsPlymouth && bIsPlymouth) {
+                console.log(`✅ Prioritizing Plymouth source: ${b.source} over ${a.source}`);
+                return 1;
+            }
+            
+            // Priority 2: Most recent first (for same priority level)
+            return (b.ts || 0) - (a.ts || 0);
+        });
+
+        console.log(`📊 Final headline order (first 5):`);
+        sortedHeadlines.slice(0, 5).forEach((h, i) => {
+            const isPlymouth = h.source.includes('plymouth') || h.source.includes('pafc');
+            console.log(`  ${i + 1}. ${h.title} [${h.source}] ${isPlymouth ? '🏠 PLYMOUTH' : '🌍 OTHER'}`);
+        });
+
+        // Limit to max headlines
+        return sortedHeadlines.slice(0, opts.maxHeadlines || MAX_HEADLINES);
     }
 
     async saveHeadlines(headlines) {

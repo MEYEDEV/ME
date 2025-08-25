@@ -58,12 +58,31 @@
     text-align: center;
 }
 
+.news-service-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+    color: #8FE04A;
+    background: transparent !important;
+    border: 1px solid #8FE04A;
+    animation: pulse 2s ease-in-out infinite;
+}
 
+@keyframes pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 0.3; }
+}
+
+.news-service-button:disabled:hover,
+.news-service-button.loading:hover {
+    transform: none;
+    box-shadow: none;
+}
 
 .news-service-button:active {
     transform: translateY(0);
     box-shadow: 0 2px 8px rgba(143, 224, 74, 0.3);
 }
+
 
 .news-service-option-btn {
     background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
@@ -168,7 +187,7 @@
 
 .news-title {
     font-family: 'Trebuchet MS', 'Trebuchet', 'Lucida Grande', 'Lucida Sans Unicode', 'Lucida Sans', Tahoma, sans-serif;
-    color: #ffffff;
+    color: var(--news-headline-color, #ffffff);
     margin-right: 12px;
     max-width: 300px;
     Font-size:16px;
@@ -283,6 +302,70 @@
 
 .news-ticker-container.light .news-time {
     color: #666;
+}
+
+/* Loading animation for news service button */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.news-service-button.loading {
+    animation: spin 1s linear infinite;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+/* Settings panel */
+.news-settings-panel {
+    position: fixed;
+    width: 260px;
+    background: rgba(22, 22, 22, 0.96);
+    border: 2px solid #8FE04A;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    color: #fff;
+    z-index: 2147483647;
+    backdrop-filter: blur(6px);
+}
+
+.news-settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+    border-bottom: 1px solid #333;
+    font-weight: bold;
+}
+
+.news-settings-close {
+    background: transparent;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.news-settings-body {
+    padding: 10px;
+    display: grid;
+    gap: 10px;
+}
+
+.news-settings-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.news-settings-value {
+    font-size: 11px;
+    color: #bbb;
 }
 
 /* Responsive design */

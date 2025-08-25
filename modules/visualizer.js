@@ -23,6 +23,8 @@ class LocalVisualizer {
     this.createCanvas();
     await this.loadLocalPresets();
     this.setupAudioReactivity();
+    // Update UI with initial preset info
+    this.updatePresetInfo();
     console.log('✅ Local visualizer initialized');
   }
 
@@ -57,8 +59,21 @@ class LocalVisualizer {
       return;
     }
 
-    // Create canvas
+    // Prefer using existing canvas in container (e.g., #butterchurnCanvas) to preserve sizing
+    const existingCanvas = container.querySelector('#butterchurnCanvas') || container.querySelector('canvas');
+    if (existingCanvas) {
+      this.canvas = existingCanvas;
+      this.ctx = this.canvas.getContext('2d');
+      if (this.ctx) {
+        console.log('✅ Using existing visualization canvas');
+        return;
+      }
+      console.warn('⚠️ Existing canvas context unavailable, creating a new canvas');
+    }
+
+    // Create canvas only if none exists or context could not be obtained
     this.canvas = document.createElement('canvas');
+    // Set explicit size to ensure visibility even if parent has no height
     this.canvas.width = 800;
     this.canvas.height = 600;
     this.canvas.style.width = '100%';
@@ -73,8 +88,7 @@ class LocalVisualizer {
       return;
     }
 
-    // Clear container and add canvas
-    container.innerHTML = '';
+    // Append without clearing to avoid removing other UI
     container.appendChild(this.canvas);
 
     console.log('✅ Canvas created and setup complete');
@@ -86,20 +100,30 @@ class LocalVisualizer {
       console.log('🔍 Attempting to load custom presets...');
       
       // First try to get presets from global object
-      if (typeof window !== 'undefined' && window.globalPresets) {
+      if (typeof window !== 'undefined' && window.globalPresets && Array.isArray(window.globalPresets)) {
         this.presets = window.globalPresets;
         console.log(`✅ Loaded ${this.presets.length} presets from global object (including ${this.presets.filter(p => p.custom).length} custom)`);
         console.log('📋 Preset names:', this.presets.map(p => p.name));
+        
+        // Ensure custom effects are available
+        if (window.customEffects) {
+          console.log('🎨 Custom effects available:', Object.keys(window.customEffects));
+        }
         return;
       }
       
       // Fallback: Try to import and load custom presets
       console.log('📦 Global presets not found, trying dynamic import...');
       const customPresets = await import('../presets/index.js');
-      console.log('📦 Import result:', customPresets);
+      console.log('📦 Import result:', Object.keys(customPresets || {}));
       
-      if (customPresets && customPresets.presets) {
+      if (customPresets && Array.isArray(customPresets.presets)) {
         this.presets = customPresets.presets;
+        // Expose custom effects globally so attachEffects can wire them
+        if (customPresets.customEffects) {
+          window.customEffects = customPresets.customEffects;
+          console.log('🎨 Custom effects loaded:', Object.keys(customPresets.customEffects));
+        }
         console.log(`✅ Loaded ${this.presets.length} presets from import (including ${customPresets.presets.filter(p => p.custom).length} custom)`);
         console.log('📋 Preset names:', this.presets.map(p => p.name));
       } else {
@@ -433,16 +457,20 @@ class LocalVisualizer {
       // Get current preset
       const preset = this.presets[this.currentPreset];
       if (!preset) {
+        console.warn('⚠️ No preset found at index:', this.currentPreset);
         this.renderFallback(width, height);
         return;
       }
       
       // Call the appropriate render function
       const renderMethod = `render${preset.type.charAt(0).toUpperCase() + preset.type.slice(1)}`;
+      console.log(`🎨 Rendering preset: ${preset.name} (type: ${preset.type}, method: ${renderMethod})`);
+      
       if (typeof this[renderMethod] === 'function') {
         this[renderMethod](width, height);
       } else {
         console.warn(`⚠️ Render method ${renderMethod} not found for preset: ${preset.name}`);
+        console.log('🔍 Available render methods:', Object.getOwnPropertyNames(this).filter(name => name.startsWith('render')));
         this.renderFallback(width, height);
       }
       
@@ -455,14 +483,20 @@ class LocalVisualizer {
   // Update preset information
   updatePresetInfo() {
     const preset = this.presets[this.currentPreset];
-    if (preset) {
-      // Update UI elements if they exist
-      const presetName = document.getElementById('presetName');
-      const presetDescription = document.getElementById('presetDescription');
-      
-      if (presetName) presetName.textContent = preset.name;
-      if (presetDescription) presetDescription.textContent = preset.description;
-    }
+    // Update known UI elements in the ProjectM panel
+    const currentPresetEl = document.getElementById('currentPreset');
+    const totalPresetsEl = document.getElementById('totalPresets');
+    const presetStatusEl = document.getElementById('presetStatus');
+
+    if (currentPresetEl && preset) currentPresetEl.textContent = preset.name;
+    if (totalPresetsEl) totalPresetsEl.textContent = String(this.presets.length || 0);
+    if (presetStatusEl) presetStatusEl.textContent = 'Ready';
+
+    // Backward compatibility with any alternate UI labels if present
+    const presetName = document.getElementById('presetName');
+    const presetDescription = document.getElementById('presetDescription');
+    if (presetName && preset) presetName.textContent = preset.name;
+    if (presetDescription && preset) presetDescription.textContent = preset.description;
   }
 
   // Start the visualizer
