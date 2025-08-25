@@ -743,7 +743,7 @@ const themePresets = {
     "rotation": 271
   }
         ],
-        bg: "images/default2.png"
+        bg: "images/default1.png"
     },
       "New": {
         name: "New",
