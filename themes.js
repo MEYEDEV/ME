@@ -437,7 +437,7 @@ const themePresets = {
       {
         "name": "Serious Procedural Misconduct by Kimberley Walsh and Notification of Pending Legal Action.pdf",
         "type": "application/pdf",
-        "url": "blob:https://mindseye.dev/9aef8fae-9003-4cfa-9a02-43abaf665b50",
+        "url": "images/KW1.pdf",
         "isObjectUrl": true,
         "originalName": "Serious Procedural Misconduct by Kimberley Walsh and Notification of Pending Legal Action.pdf"
       }
