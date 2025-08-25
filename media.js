@@ -1170,11 +1170,14 @@ function showWelcomeMessage() {
           
           <strong>Gamepad Controls (Keyboard):</strong><br>
           • <kbd>Shift</kbd> - Bubble Bounce<br>
-          • <kbd>.</kbd> - Bubble Collect<br>
+          • <kbd>.</kbd> - Bubble Collect<br><br>
 
-          <strong>Special Thanks to: (Keyboard):</strong><br>
+          <strong>Special Thanks to::</strong><br>
           • LAForster<br>
-          • CQC
+          • CQC, PSA<br>
+          • Github, Render<br>
+          • Porkhub, Huggingface<br>
+          • To be continued...
         </div>
       `;
     }
