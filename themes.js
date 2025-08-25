@@ -492,6 +492,7 @@ const themePresets = {
     "textColor": "hsl(246, 100%, 56.83269264442881%)",
     "radius": 80,
     "font": "Monaco",
+    "image": "images/CSc.png",
     "shape": "circle",
     "heightRatio": 1,
     "glow": false,
