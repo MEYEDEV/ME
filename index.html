@@ -417,13 +417,7 @@
       <span>Mindseye Control Hub</span>
       <button onclick="hideControlHubPanel()" class="control-hub-close-btn" title="Close">✖️</button>
     </div>
-    <div id="controlHubHUD" class="control-hub-hud">
-      <div>🫧 Bubbles: <span id="hudBubbleCount">0</span></div>
-      <div>📄 Unread Docs: <span id="hudUnreadDocs">0</span></div>
-      <div>🐾 Pending SARs: <span id="hudPendingSARs">0</span></div>
-      <div>🗔 Active Overlays: <span id="hudActiveOverlays">0</span></div>
-      <div style="font-size: 11px; opacity: 0.8;">Last action: <span id="hudLastAction">—</span></div>
-    </div>
+    
     <div class="control-hub-menu">
       <button onclick="openBubbleTracker()" class="control-hub-item">🧭 Bubble Tracker HUD</button>
       <button onclick="openSARTracker()" class="control-hub-item">🐾 SAR Tracker</button>
@@ -446,6 +440,7 @@
       <div style="display:flex; gap:6px; align-items:center;">
         <button class="assistant-btn" onclick="assistantPrev()" title="Previous">⏮️</button>
         <button class="assistant-btn" onclick="assistantNext()" title="Next">⏭️</button>
+        <button class="assistant-btn" onclick="assistantMinimize()" title="Minimize">−</button>
         <button class="assistant-close-btn" onclick="hideAssistantOverlay()" title="Close">✖️</button>
       </div>
     </div>
@@ -454,6 +449,11 @@
       <div id="assistantStatus" class="assistant-status">Press A to toggle. Configure videos via window.AssistantConfig.videos = []</div>
     </div>
   </div>
+
+  
+
+  <!-- Floating Control Hub Toggle -->
+  <button id="controlHubToggleFab" class="control-hub-toggle-fab" onclick="toggleControlHub()" title="Control Hub">⚙️</button>
 
   <!-- Dice Overlay -->
   <div class="dice-overlay" id="diceOverlay"></div>

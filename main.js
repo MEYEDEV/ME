@@ -2310,9 +2310,11 @@ function updateControlHubHUD(updateLastAction = false, lastActionText = '') {
   // Bubble count
   const bubbleCountEl = document.getElementById('hudBubbleCount');
   if (bubbleCountEl) bubbleCountEl.textContent = (ideas && Array.isArray(ideas)) ? ideas.length : 0;
+  
   // Unread docs (placeholder: count attachments without viewed flag)
   const unreadDocsEl = document.getElementById('hudUnreadDocs');
   if (unreadDocsEl) unreadDocsEl.textContent = 0;
+  
   // Pending SARs (placeholder)
   const pendingSARsEl = document.getElementById('hudPendingSARs');
   if (pendingSARsEl) {
@@ -2323,6 +2325,7 @@ function updateControlHubHUD(updateLastAction = false, lastActionText = '') {
     } catch(_) {}
     pendingSARsEl.textContent = count;
   }
+  
   // Active overlays: count known panels visible
   const overlays = [
     document.getElementById('panel'),
@@ -2336,6 +2339,7 @@ function updateControlHubHUD(updateLastAction = false, lastActionText = '') {
   const activeOverlays = overlays.filter(el => el && getComputedStyle(el).display !== 'none').length + (controlHubOpen ? 1 : 0);
   const activeOverlaysEl = document.getElementById('hudActiveOverlays');
   if (activeOverlaysEl) activeOverlaysEl.textContent = activeOverlays;
+  
   if (updateLastAction) {
     const lastEl = document.getElementById('hudLastAction');
     if (lastEl) lastEl.textContent = lastActionText || new Date().toLocaleTimeString();
@@ -2358,6 +2362,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (last === '1') {
       setTimeout(showControlHubPanel, 300);
     }
+    
   } catch(_) {}
 });
 
@@ -2442,7 +2447,7 @@ window.openSARTracker = openSARTracker;
 window.setSARTrackerState = setSARTrackerState;
 
 // ===== Tutorial / Assistant overlay with .webm playback =====
-window.AssistantConfig = window.AssistantConfig || { videos: [] };
+window.AssistantConfig = window.AssistantConfig || { videos: ['video/lucky-assistant.webm'] };
 let assistantIndex = 0;
 
 function showAssistantOverlay() {
@@ -2451,6 +2456,7 @@ function showAssistantOverlay() {
   if (!overlay || !vid) return;
   overlay.style.display = 'block';
   loadAssistantVideo(assistantIndex);
+  makeAssistantDraggable();
 }
 function hideAssistantOverlay() {
   const overlay = document.getElementById('assistantOverlay');
@@ -2484,11 +2490,18 @@ function loadAssistantVideo(index) {
 function assistantNext() { loadAssistantVideo(assistantIndex + 1); }
 function assistantPrev() { loadAssistantVideo(assistantIndex - 1); }
 
+function assistantMinimize() {
+  const overlay = document.getElementById('assistantOverlay');
+  if (!overlay) return;
+  overlay.classList.toggle('minimized');
+}
+
 window.showAssistantOverlay = showAssistantOverlay;
 window.hideAssistantOverlay = hideAssistantOverlay;
 window.toggleAssistantOverlay = toggleAssistantOverlay;
 window.assistantNext = assistantNext;
 window.assistantPrev = assistantPrev;
+window.assistantMinimize = assistantMinimize;
 
 // Hotkey: A to toggle assistant
 document.addEventListener('keydown', (e) => {
@@ -2498,6 +2511,46 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
   }
 });
+
+function makeAssistantDraggable() {
+  const overlay = document.getElementById('assistantOverlay');
+  const vid = document.getElementById('assistantVideo');
+  if (!overlay || !vid) return;
+  let isDown = false; let startX = 0; let startY = 0; let origLeft = 0; let origTop = 0;
+  const onDown = (e) => {
+    isDown = true; overlay.classList.add('dragging');
+    const rect = overlay.getBoundingClientRect();
+    origLeft = rect.left; origTop = rect.top;
+    startX = (e.touches ? e.touches[0].clientX : e.clientX);
+    startY = (e.touches ? e.touches[0].clientY : e.clientY);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive:false });
+    document.addEventListener('touchend', onUp);
+  };
+  const onMove = (e) => {
+    if (!isDown) return; e.preventDefault();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX);
+    const y = (e.touches ? e.touches[0].clientY : e.clientY);
+    const dx = x - startX; const dy = y - startY;
+    overlay.style.left = (origLeft + dx) + 'px';
+    overlay.style.top = (origTop + dy) + 'px';
+    overlay.style.right = 'auto';
+    overlay.style.transform = 'none';
+    overlay.style.position = 'fixed';
+  };
+  const onUp = () => {
+    isDown = false; overlay.classList.remove('dragging');
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+  };
+  vid.addEventListener('mousedown', onDown);
+  vid.addEventListener('touchstart', onDown, { passive:true });
+}
+
+// Mini HUD removed
 
 // ===== Control Hub content renderer + default hooks =====
 window.MindseyeHooks = window.MindseyeHooks || {
@@ -2561,9 +2614,24 @@ function renderControlHubSection(section) {
     }
     case 'autotrader': {
       const status = window.MindseyeHooks.autoTrader.status();
-      root.innerHTML = `<div class=\"hub-section\"><h4>💸 Auto-Trader / Pattern Detector</h4><div class=\"hub-row\"><button class=\"hub-button\" id=\"autoTraderRun\">Run scan</button><div id=\"autoTraderStatus\" style=\"font-size:12px; color:#ccc;\">Last run: ${status.lastRun || '—'}, findings: ${status.findings || 0}</div></div></div>`;
+      root.innerHTML = `<div class=\"hub-section\"><h4>💸 Auto-Trader / Pattern Detector</h4>
+        <div class=\"hub-row\">
+          <button class=\"hub-button\" id=\"autoTraderRun\">Run scan</button>
+          <button class=\"hub-button\" id=\"autoTraderOpen\">Open ATB</button>
+          <div id=\"autoTraderStatus\" style=\"font-size:12px; color:#ccc;\">Last run: ${status.lastRun || '—'}, findings: ${status.findings || 0}</div>
+        </div>
+        <div class=\"hub-row\" style=\"flex-wrap:wrap; gap:6px;\">
+          <button class=\"hub-button\" id=\"autoTraderDemo1\">Demo 1</button>
+          <button class=\"hub-button\" id=\"autoTraderDemo2\">Demo 2</button>
+          <button class=\"hub-button\" id=\"autoTraderDemo3\">Demo 3</button>
+        </div>
+      </div>`;
       const btn = root.querySelector('#autoTraderRun');
       const stat = root.querySelector('#autoTraderStatus');
+      const openBtn = root.querySelector('#autoTraderOpen');
+      const d1 = root.querySelector('#autoTraderDemo1');
+      const d2 = root.querySelector('#autoTraderDemo2');
+      const d3 = root.querySelector('#autoTraderDemo3');
       if (btn && stat) {
         btn.onclick = async () => {
           btn.disabled = true; btn.textContent = 'Running...';
@@ -2574,6 +2642,22 @@ function renderControlHubSection(section) {
           updateControlHubHUD(true, 'Auto-Trader run');
         };
       }
+      if (openBtn) {
+        openBtn.onclick = () => {
+          // Open ATB folder entry point (assumed index.html under ATB)
+          window.open('ATB/index.html', '_blank');
+        };
+      }
+      const runDemo = async (mode) => {
+        if (typeof window.MindseyeHooks.autoTrader.run !== 'function') return;
+        const res = await window.MindseyeHooks.autoTrader.run({ mode });
+        const newStatus = window.MindseyeHooks.autoTrader.status();
+        if (stat) stat.textContent = `Last run: ${newStatus.lastRun || 'now'}, findings: ${newStatus.findings || (res && res.findings) || 0}`;
+        updateControlHubHUD(true, `Auto-Trader ${mode}`);
+      };
+      if (d1) d1.onclick = () => runDemo('demo1');
+      if (d2) d2.onclick = () => runDemo('demo2');
+      if (d3) d3.onclick = () => runDemo('demo3');
       break;
     }
     case 'twitter': {
