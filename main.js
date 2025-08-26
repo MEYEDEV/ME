@@ -2290,6 +2290,7 @@ function showControlHubPanel() {
   const panel = document.getElementById('controlHubPanel');
   if (!panel) return;
   panel.style.display = 'block';
+  panel.classList.remove('minimized');
   controlHubOpen = true;
   try { localStorage.setItem('mindsEye_controlHub_open', '1'); } catch(_) {}
   updateControlHubHUD(true);
@@ -2305,6 +2306,20 @@ function hideControlHubPanel() {
   controlHubOpen = false;
   try { localStorage.setItem('mindsEye_controlHub_open', '0'); } catch(_) {}
 }
+
+function toggleControlHubMinimize() {
+  const panel = document.getElementById('controlHubPanel');
+  if (!panel) return;
+  const isMin = panel.classList.contains('minimized');
+  if (isMin) {
+    panel.classList.remove('minimized');
+    try { localStorage.setItem('mindsEye_controlHub_min', '0'); } catch(_) {}
+  } else {
+    panel.classList.add('minimized');
+    try { localStorage.setItem('mindsEye_controlHub_min', '1'); } catch(_) {}
+  }
+}
+window.toggleControlHubMinimize = toggleControlHubMinimize;
 
 function updateControlHubHUD(updateLastAction = false, lastActionText = '') {
   // Bubble count
@@ -2361,6 +2376,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const last = localStorage.getItem('mindsEye_controlHub_open');
     if (last === '1') {
       setTimeout(showControlHubPanel, 300);
+    }
+    const min = localStorage.getItem('mindsEye_controlHub_min');
+    if (min === '1') {
+      const panel = document.getElementById('controlHubPanel');
+      if (panel) panel.classList.add('minimized');
     }
     
   } catch(_) {}

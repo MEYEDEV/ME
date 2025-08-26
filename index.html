@@ -415,7 +415,10 @@
   <div id="controlHubPanel" class="control-hub-panel" style="display: none;">
     <div class="control-hub-header">
       <span>Mindseye Control Hub</span>
-      <button onclick="hideControlHubPanel()" class="control-hub-close-btn" title="Close">✖️</button>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <button onclick="toggleControlHubMinimize()" class="control-hub-close-btn" title="Minimize">−</button>
+        <button onclick="hideControlHubPanel()" class="control-hub-close-btn" title="Close">✖️</button>
+      </div>
     </div>
     
     <div class="control-hub-menu">

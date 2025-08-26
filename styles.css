@@ -761,7 +761,7 @@ button[data-png="bucheck"].has-png {
 .control-hub-panel {
   position: fixed;
   top: 90px;
-  right: 15px;
+  left: 15px;
   width: 320px;
   max-height: 75vh;
   background: rgba(20, 20, 20, 0.9);
@@ -834,6 +834,26 @@ button[data-png="bucheck"].has-png {
 .control-hub-content {
   padding: 12px;
   border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Minimized docked state aligned with bottom ticker */
+.control-hub-panel.minimized {
+  bottom: 45px; /* news ticker sits at bottom: 0; approximate 40px height + 5px gap */
+  left: 0;
+  top: auto;
+  width: auto;
+  max-width: none;
+  height: 36px;
+  max-height: none;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 0 8px 0 0;
+}
+.control-hub-panel.minimized .control-hub-menu,
+.control-hub-panel.minimized .control-hub-content {
+  display: none;
 }
 
 .hub-section h4 { margin: 4px 0 10px 0; color: #8FE04A; }
