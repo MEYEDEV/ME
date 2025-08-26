@@ -2158,6 +2158,7 @@ const themePresets = {
     "textColor": "white",
     "radius": 44,
     "font": "Monaco",
+    "image": "images/gmc.png",
     "shape": "circle",
     "heightRatio": 1,
     "glow": false,
