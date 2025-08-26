@@ -2544,8 +2544,11 @@ document.addEventListener('keydown', (e) => {
     const lucky = document.getElementById('lucky-assistant');
     if (lucky) {
       const showing = getComputedStyle(lucky).display !== 'none';
-      lucky.style.display = showing ? 'none' : 'block';
-      if (!showing) {
+      if (showing) {
+        try { lucky.pause(); } catch(_) {}
+        lucky.style.display = 'none';
+      } else {
+        lucky.style.display = 'block';
         try { lucky.muted = false; lucky.volume = 1.0; lucky.play(); } catch(_) {}
       }
       e.preventDefault();
