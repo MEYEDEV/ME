@@ -445,7 +445,7 @@
       </div>
     </div>
     <div class="assistant-body">
-      <video id="assistantVideo" class="assistant-video" autoplay loop playsinline></video>
+      <video id="assistantVideo" class="assistant-video" autoplay loop playsinline preload="auto"></video>
       <div id="assistantStatus" class="assistant-status">Press A to toggle. Configure videos via window.AssistantConfig.videos = []</div>
     </div>
   </div>
@@ -454,6 +454,9 @@
 
   <!-- Floating Control Hub Toggle -->
   <button id="controlHubToggleFab" class="control-hub-toggle-fab" onclick="toggleControlHub()" title="Control Hub">⚙️</button>
+
+  <!-- Lucky Assistant (transparent WebM) -->
+  <video id="lucky-assistant" autoplay loop playsinline preload="auto" style="position: fixed; bottom: 40px; right: 20px; width: 360px; height: auto; z-index: 70002; background: transparent; pointer-events: auto; display: none;"><source src="video/lucky-assistant.webm" type="video/webm"></video>
 
   <!-- Dice Overlay -->
   <div class="dice-overlay" id="diceOverlay"></div>

@@ -2491,7 +2491,7 @@ function loadAssistantVideo(index) {
   vid.appendChild(source);
   try { vid.load(); } catch(_) {}
   try { vid.muted = false; vid.volume = 1.0; vid.play(); } catch(_) {}
-  if (status) status.textContent = `${assistantIndex + 1}/${list.length}: ${url}`;
+  if (status) status.textContent = '';
   // Fallback path swap if load fails (media <-> video)
   const handleError = () => {
     try {
@@ -2513,6 +2513,12 @@ function loadAssistantVideo(index) {
   vid.addEventListener('error', handleError, { once: true });
   vid.addEventListener('stalled', handleError, { once: true });
   vid.addEventListener('emptied', handleError, { once: true });
+  // show a one-liner if load truly fails
+  const onFail = () => {
+    if (status) status.textContent = 'Assistant video failed to load.';
+    vid.removeEventListener('error', onFail);
+  };
+  vid.addEventListener('error', onFail, { once: true });
 }
 function assistantNext() { loadAssistantVideo(assistantIndex + 1); }
 function assistantPrev() { loadAssistantVideo(assistantIndex - 1); }
@@ -2534,6 +2540,17 @@ window.assistantMinimize = assistantMinimize;
 document.addEventListener('keydown', (e) => {
   const isTypingTarget = (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable));
   if (!isTypingTarget && (e.key === 'a' || e.key === 'A')) {
+    // Prefer native video element if present
+    const lucky = document.getElementById('lucky-assistant');
+    if (lucky) {
+      const showing = getComputedStyle(lucky).display !== 'none';
+      lucky.style.display = showing ? 'none' : 'block';
+      if (!showing) {
+        try { lucky.muted = false; lucky.volume = 1.0; lucky.play(); } catch(_) {}
+      }
+      e.preventDefault();
+      return;
+    }
     toggleAssistantOverlay();
     e.preventDefault();
     return;

@@ -873,7 +873,7 @@ button[data-png="bucheck"].has-png {
   border: none;
   border-radius: 0;
   box-shadow: none;
-  z-index: 70001; /* higher than dice overlay */
+  z-index: 70001; /* higher than dice overlay; legacy overlay path */
   pointer-events: none; /* allow clicks to pass except video area */
 }
 
@@ -898,6 +898,8 @@ button[data-png="bucheck"].has-png {
   image-rendering: auto;
   pointer-events: auto; /* video remains draggable target */
   mix-blend-mode: normal;
+  display: block;
+  visibility: visible;
 }
 
 .assistant-status {
