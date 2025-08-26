@@ -2447,7 +2447,7 @@ window.openSARTracker = openSARTracker;
 window.setSARTrackerState = setSARTrackerState;
 
 // ===== Tutorial / Assistant overlay with .webm playback =====
-window.AssistantConfig = window.AssistantConfig || { videos: ['video/lucky-assistant.webm'] };
+window.AssistantConfig = window.AssistantConfig || { videos: ['/media/lucky-assistant.webm'] };
 let assistantIndex = 0;
 
 function showAssistantOverlay() {
@@ -2457,6 +2457,7 @@ function showAssistantOverlay() {
   overlay.style.display = 'block';
   loadAssistantVideo(assistantIndex);
   makeAssistantDraggable();
+  try { vid.muted = false; vid.volume = 1.0; vid.play(); } catch(_) {}
 }
 function hideAssistantOverlay() {
   const overlay = document.getElementById('assistantOverlay');
@@ -2482,9 +2483,14 @@ function loadAssistantVideo(index) {
   }
   const url = list[((index % list.length) + list.length) % list.length];
   assistantIndex = ((index % list.length) + list.length) % list.length;
-  vid.src = url;
-  vid.load();
-  try { vid.play(); } catch(_) {}
+  // prefer explicit source element for better alpha handling
+  while (vid.firstChild) vid.removeChild(vid.firstChild);
+  const source = document.createElement('source');
+  source.src = url;
+  source.type = 'video/webm';
+  vid.appendChild(source);
+  try { vid.load(); } catch(_) {}
+  try { vid.muted = false; vid.volume = 1.0; vid.play(); } catch(_) {}
   if (status) status.textContent = `${assistantIndex + 1}/${list.length}: ${url}`;
 }
 function assistantNext() { loadAssistantVideo(assistantIndex + 1); }
@@ -2508,6 +2514,12 @@ document.addEventListener('keydown', (e) => {
   const isTypingTarget = (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable));
   if (!isTypingTarget && (e.key === 'a' || e.key === 'A')) {
     toggleAssistantOverlay();
+    e.preventDefault();
+    return;
+  }
+  if (!isTypingTarget && (e.key === 'z' || e.key === 'Z')) {
+    // Next assistant video
+    assistantNext();
     e.preventDefault();
   }
 });

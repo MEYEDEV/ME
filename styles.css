@@ -864,16 +864,17 @@ button[data-png="bucheck"].has-png {
 /* ===== ASSISTANT OVERLAY ===== */
 .assistant-overlay {
   position: fixed;
-  top: 80px;
-  right: 50%;
-  transform: translateX(50%);
-  width: min(720px, 90vw);
+  bottom: 40px;
+  right: 20px;
+  transform: none;
+  width: 360px;
   background: rgba(0,0,0,0.0);
   color: white;
   border: none;
   border-radius: 0;
   box-shadow: none;
-  z-index: 65010;
+  z-index: 70001; /* higher than dice overlay */
+  pointer-events: none; /* allow clicks to pass except video area */
 }
 
 .assistant-header {
@@ -887,13 +888,16 @@ button[data-png="bucheck"].has-png {
   font-weight: bold;
 }
 
-.assistant-body { padding: 10px 12px; }
+.assistant-body { padding: 10px 12px; pointer-events: none; }
 
 .assistant-video {
   width: 100%;
   height: auto;
-  border-radius: 8px;
-  background: black;
+  border-radius: 0;
+  background: transparent !important; /* ensure transparent background */
+  image-rendering: auto;
+  pointer-events: auto; /* video remains draggable target */
+  mix-blend-mode: normal;
 }
 
 .assistant-status {
