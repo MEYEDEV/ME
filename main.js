@@ -2447,7 +2447,7 @@ window.openSARTracker = openSARTracker;
 window.setSARTrackerState = setSARTrackerState;
 
 // ===== Tutorial / Assistant overlay with .webm playback =====
-window.AssistantConfig = window.AssistantConfig || { videos: ['/media/lucky-assistant.webm'] };
+window.AssistantConfig = window.AssistantConfig || { videos: ['/video/lucky-assistant.webm'] };
 let assistantIndex = 0;
 
 function showAssistantOverlay() {
@@ -2492,6 +2492,27 @@ function loadAssistantVideo(index) {
   try { vid.load(); } catch(_) {}
   try { vid.muted = false; vid.volume = 1.0; vid.play(); } catch(_) {}
   if (status) status.textContent = `${assistantIndex + 1}/${list.length}: ${url}`;
+  // Fallback path swap if load fails (media <-> video)
+  const handleError = () => {
+    try {
+      const alt = url.includes('/media/') ? url.replace('/media/', '/video/') : url.includes('/video/') ? url.replace('/video/', '/media/') : null;
+      if (alt) {
+        while (vid.firstChild) vid.removeChild(vid.firstChild);
+        const s2 = document.createElement('source');
+        s2.src = alt; s2.type = 'video/webm';
+        vid.appendChild(s2);
+        try { vid.load(); vid.muted = false; vid.volume = 1.0; vid.play(); } catch(_) {}
+        if (status) status.textContent = `${assistantIndex + 1}/${list.length}: ${alt}`;
+      }
+    } catch(_) {}
+    // Remove listeners after first attempt
+    vid.removeEventListener('error', handleError);
+    vid.removeEventListener('stalled', handleError);
+    vid.removeEventListener('emptied', handleError);
+  };
+  vid.addEventListener('error', handleError, { once: true });
+  vid.addEventListener('stalled', handleError, { once: true });
+  vid.addEventListener('emptied', handleError, { once: true });
 }
 function assistantNext() { loadAssistantVideo(assistantIndex + 1); }
 function assistantPrev() { loadAssistantVideo(assistantIndex - 1); }
