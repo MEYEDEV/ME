@@ -2648,7 +2648,28 @@ function renderControlHubSection(section) {
   if (!root) return;
   switch(section) {
     case 'bubbleTracker': {
-      root.innerHTML = '<div class="hub-section"><h4>🧭 Bubble Tracker</h4><div>Live counters shown in HUD.</div></div>';
+      root.innerHTML = '<div class="hub-section"><h4>🧭 Bubble Tracker</h4><div class="hub-row">Bubbles on canvas: <strong id="btCount">0</strong></div><div class="hub-row">Timeline: <span id="btFrom">—</span> → <span id="btTo">—</span></div><div class="hub-row" style="font-size:12px; color:#ccc;">Earliest and latest createdDate of bubbles</div></div>';
+      const update = () => {
+        const count = Array.isArray(ideas) ? ideas.length : 0;
+        const btCount = root.querySelector('#btCount');
+        if (btCount) btCount.textContent = count;
+        let from = null, to = null;
+        if (count > 0) {
+          for (const i of ideas) {
+            const d = i && i.createdDate ? i.createdDate : null;
+            if (!d) continue;
+            if (!from || d < from) from = d;
+            if (!to || d > to) to = d;
+          }
+        }
+        const fromEl = root.querySelector('#btFrom');
+        const toEl = root.querySelector('#btTo');
+        if (fromEl) fromEl.textContent = from || '—';
+        if (toEl) toEl.textContent = to || '—';
+      };
+      update();
+      // Also re-run update after small delay to catch late inits
+      setTimeout(update, 200);
       break;
     }
     case 'timeline': {

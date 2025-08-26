@@ -864,22 +864,7 @@ button[data-png="bucheck"].has-png {
 
 /* Mini HUD styles removed */
 
-/* Floating Control Hub Toggle */
-.control-hub-toggle-fab {
-  position: fixed;
-  top: 90px;
-  right: 15px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.8);
-  color: white;
-  border: 2px solid #444;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.4);
-  cursor: pointer;
-  z-index: 65030;
-}
-.control-hub-toggle-fab:hover { filter: brightness(1.2); }
+/* Floating Control Hub Toggle removed */
 
 /* ===== ASSISTANT OVERLAY ===== */
 .assistant-overlay {
