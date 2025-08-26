@@ -2275,6 +2275,362 @@ function closeAnalysisIframe() {
   }
 }
 
+// ===== MINDSEYE CONTROL HUB =====
+let controlHubOpen = false;
+
+function toggleControlHub() {
+  if (controlHubOpen) {
+    hideControlHubPanel();
+  } else {
+    showControlHubPanel();
+  }
+}
+
+function showControlHubPanel() {
+  const panel = document.getElementById('controlHubPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  controlHubOpen = true;
+  try { localStorage.setItem('mindsEye_controlHub_open', '1'); } catch(_) {}
+  updateControlHubHUD(true);
+  // Autofocus first item for accessibility
+  const firstBtn = panel.querySelector('.control-hub-item');
+  if (firstBtn) firstBtn.focus();
+}
+
+function hideControlHubPanel() {
+  const panel = document.getElementById('controlHubPanel');
+  if (!panel) return;
+  panel.style.display = 'none';
+  controlHubOpen = false;
+  try { localStorage.setItem('mindsEye_controlHub_open', '0'); } catch(_) {}
+}
+
+function updateControlHubHUD(updateLastAction = false, lastActionText = '') {
+  // Bubble count
+  const bubbleCountEl = document.getElementById('hudBubbleCount');
+  if (bubbleCountEl) bubbleCountEl.textContent = (ideas && Array.isArray(ideas)) ? ideas.length : 0;
+  // Unread docs (placeholder: count attachments without viewed flag)
+  const unreadDocsEl = document.getElementById('hudUnreadDocs');
+  if (unreadDocsEl) unreadDocsEl.textContent = 0;
+  // Pending SARs (placeholder)
+  const pendingSARsEl = document.getElementById('hudPendingSARs');
+  if (pendingSARsEl) {
+    let count = 0;
+    try {
+      const sar = JSON.parse(localStorage.getItem('mindsEye_sar_tracker') || 'null');
+      count = sar && typeof sar.pendingCount === 'number' ? sar.pendingCount : 0;
+    } catch(_) {}
+    pendingSARsEl.textContent = count;
+  }
+  // Active overlays: count known panels visible
+  const overlays = [
+    document.getElementById('panel'),
+    document.getElementById('drawingSettingsPanel'),
+    document.getElementById('analysisPanel'),
+    document.getElementById('analysisIframeContainer'),
+    document.getElementById('musicPanel'),
+    document.getElementById('videoPlaylist'),
+    document.getElementById('readPanel')
+  ];
+  const activeOverlays = overlays.filter(el => el && getComputedStyle(el).display !== 'none').length + (controlHubOpen ? 1 : 0);
+  const activeOverlaysEl = document.getElementById('hudActiveOverlays');
+  if (activeOverlaysEl) activeOverlaysEl.textContent = activeOverlays;
+  if (updateLastAction) {
+    const lastEl = document.getElementById('hudLastAction');
+    if (lastEl) lastEl.textContent = lastActionText || new Date().toLocaleTimeString();
+  }
+}
+
+// Hotkey: H to toggle Control Hub (when not typing)
+document.addEventListener('keydown', (e) => {
+  const isTypingTarget = (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable));
+  if (!isTypingTarget && (e.key === 'h' || e.key === 'H')) {
+    toggleControlHub();
+    e.preventDefault();
+  }
+});
+
+// Restore last state after init
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const last = localStorage.getItem('mindsEye_controlHub_open');
+    if (last === '1') {
+      setTimeout(showControlHubPanel, 300);
+    }
+  } catch(_) {}
+});
+
+// Expose globally
+window.toggleControlHub = toggleControlHub;
+window.showControlHubPanel = showControlHubPanel;
+window.hideControlHubPanel = hideControlHubPanel;
+window.updateControlHubHUD = updateControlHubHUD;
+
+// ===== Control Hub module stubs =====
+function openBubbleTracker() {
+  showControlHubPanel();
+  renderControlHubSection('bubbleTracker');
+  updateControlHubHUD(true, 'Opened Bubble Tracker HUD');
+}
+function openTimelinePlayback() {
+  showControlHubPanel();
+  renderControlHubSection('timeline');
+  updateControlHubHUD(true, 'Opened Timeline Playback');
+}
+function openTranscriptionDropzone() {
+  showControlHubPanel();
+  renderControlHubSection('transcription');
+  updateControlHubHUD(true, 'Opened Transcription Dropzone');
+}
+function openAutoTrader() {
+  showControlHubPanel();
+  renderControlHubSection('autotrader');
+  updateControlHubHUD(true, 'Opened Auto-Trader / Pattern Detector');
+}
+function openTwitterScraper() {
+  // Legal warning placeholder
+  alert('Legal note: Ensure compliance with Twitter/X Terms and local laws before scraping.');
+  showControlHubPanel();
+  renderControlHubSection('twitter');
+  updateControlHubHUD(true, 'Opened Twitter/X Scraper');
+}
+function openResourceDrawer() {
+  showControlHubPanel();
+  renderControlHubSection('resources');
+  updateControlHubHUD(true, 'Opened Resource Drawer');
+}
+function openCopyRepository() {
+  showControlHubPanel();
+  renderControlHubSection('copyrepo');
+  updateControlHubHUD(true, 'Opened Copy Repository');
+}
+function openTutorialAssistant() {
+  showControlHubPanel();
+  updateControlHubHUD(true, 'Opened Tutorial / Assistant');
+}
+function openBroadcastMode() {
+  showControlHubPanel();
+  updateControlHubHUD(true, 'Opened Broadcast Mode');
+}
+
+window.openBubbleTracker = openBubbleTracker;
+window.openTimelinePlayback = openTimelinePlayback;
+window.openTranscriptionDropzone = openTranscriptionDropzone;
+window.openAutoTrader = openAutoTrader;
+window.openTwitterScraper = openTwitterScraper;
+window.openResourceDrawer = openResourceDrawer;
+window.openCopyRepository = openCopyRepository;
+window.openTutorialAssistant = openTutorialAssistant;
+window.openBroadcastMode = openBroadcastMode;
+
+// ===== SAR Tracker minimal integration =====
+function openSARTracker() {
+  // Open SAR tracker in a new tab
+  window.open('https://jannerap.github.io/SAR/', '_blank');
+  updateControlHubHUD(true, 'Opened SAR Tracker');
+}
+function setSARTrackerState(state) {
+  // state: { pendingCount:number, url?:string, updatedAt?:number }
+  try {
+    const payload = Object.assign({}, state, { updatedAt: Date.now() });
+    localStorage.setItem('mindsEye_sar_tracker', JSON.stringify(payload));
+  } catch(_) {}
+  updateControlHubHUD(true, 'SAR state updated');
+}
+window.openSARTracker = openSARTracker;
+window.setSARTrackerState = setSARTrackerState;
+
+// ===== Tutorial / Assistant overlay with .webm playback =====
+window.AssistantConfig = window.AssistantConfig || { videos: [] };
+let assistantIndex = 0;
+
+function showAssistantOverlay() {
+  const overlay = document.getElementById('assistantOverlay');
+  const vid = document.getElementById('assistantVideo');
+  if (!overlay || !vid) return;
+  overlay.style.display = 'block';
+  loadAssistantVideo(assistantIndex);
+}
+function hideAssistantOverlay() {
+  const overlay = document.getElementById('assistantOverlay');
+  const vid = document.getElementById('assistantVideo');
+  if (vid) { try { vid.pause(); } catch(_) {} }
+  if (overlay) overlay.style.display = 'none';
+}
+function toggleAssistantOverlay() {
+  const overlay = document.getElementById('assistantOverlay');
+  if (!overlay) return;
+  const isOpen = getComputedStyle(overlay).display !== 'none';
+  if (isOpen) hideAssistantOverlay(); else showAssistantOverlay();
+}
+function loadAssistantVideo(index) {
+  const list = (window.AssistantConfig && Array.isArray(window.AssistantConfig.videos)) ? window.AssistantConfig.videos : [];
+  const status = document.getElementById('assistantStatus');
+  const vid = document.getElementById('assistantVideo');
+  if (!vid) return;
+  if (!list.length) {
+    if (status) status.textContent = 'No assistant videos configured. Set window.AssistantConfig.videos = ["/path/tutorial.webm", ...]';
+    vid.removeAttribute('src');
+    return;
+  }
+  const url = list[((index % list.length) + list.length) % list.length];
+  assistantIndex = ((index % list.length) + list.length) % list.length;
+  vid.src = url;
+  vid.load();
+  try { vid.play(); } catch(_) {}
+  if (status) status.textContent = `${assistantIndex + 1}/${list.length}: ${url}`;
+}
+function assistantNext() { loadAssistantVideo(assistantIndex + 1); }
+function assistantPrev() { loadAssistantVideo(assistantIndex - 1); }
+
+window.showAssistantOverlay = showAssistantOverlay;
+window.hideAssistantOverlay = hideAssistantOverlay;
+window.toggleAssistantOverlay = toggleAssistantOverlay;
+window.assistantNext = assistantNext;
+window.assistantPrev = assistantPrev;
+
+// Hotkey: A to toggle assistant
+document.addEventListener('keydown', (e) => {
+  const isTypingTarget = (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable));
+  if (!isTypingTarget && (e.key === 'a' || e.key === 'A')) {
+    toggleAssistantOverlay();
+    e.preventDefault();
+  }
+});
+
+// ===== Control Hub content renderer + default hooks =====
+window.MindseyeHooks = window.MindseyeHooks || {
+  // Provide your own implementations to integrate real systems
+  autoTrader: {
+    status: () => ({ lastRun: null, findings: 0 }),
+    run: async () => ({ ok: true, findings: 0 })
+  },
+  transcription: {
+    handleFiles: async (files) => ({ ok: true, transcripts: [] })
+  },
+  twitter: {
+    load: async (queryOrId) => ({ ok: true, tweets: [] })
+  },
+  resources: {
+    load: async () => ({ ok: true, items: [] })
+  }
+};
+
+function renderControlHubSection(section) {
+  const root = document.getElementById('controlHubContent');
+  if (!root) return;
+  switch(section) {
+    case 'bubbleTracker': {
+      root.innerHTML = '<div class="hub-section"><h4>🧭 Bubble Tracker</h4><div>Live counters shown in HUD.</div></div>';
+      break;
+    }
+    case 'timeline': {
+      root.innerHTML = '<div class="hub-section"><h4>📼 Timeline Playback</h4><div>Use media toolbar controls below for timeline functions.</div></div>';
+      break;
+    }
+    case 'transcription': {
+      root.innerHTML = '<div class="hub-section"><h4>🎙️ Transcription Dropzone</h4><div id="transcriptionDrop" style="border:1px dashed #555; border-radius:8px; padding:16px; text-align:center;">Drop M4A/MP3 files here or <input type="file" id="transcriptionInput" accept="audio/m4a,audio/mp3,audio/mpeg" multiple class="hub-input" style="max-width:60%"></div><div id="transcriptionResult" style="margin-top:8px; font-size:12px; color:#ccc;"></div></div>';
+      const drop = root.querySelector('#transcriptionDrop');
+      const input = root.querySelector('#transcriptionInput');
+      const setHandlers = (el) => {
+        el.ondragover = (e) => { e.preventDefault(); el.style.background = 'rgba(255,255,255,0.05)'; };
+        el.ondragleave = () => { el.style.background = 'transparent'; };
+        el.ondrop = async (e) => {
+          e.preventDefault(); el.style.background = 'transparent';
+          if (e.dataTransfer && e.dataTransfer.files) {
+            const res = await window.MindseyeHooks.transcription.handleFiles(Array.from(e.dataTransfer.files));
+            showTranscriptionResult(res);
+          }
+        };
+      };
+      const showTranscriptionResult = (res) => {
+        const out = root.querySelector('#transcriptionResult');
+        if (!out) return;
+        out.textContent = res && res.ok ? `Processed ${res.transcripts?.length || 0} file(s).` : 'Transcription failed or not configured.';
+      };
+      setHandlers(drop);
+      if (input) {
+        input.onchange = async (e) => {
+          const files = Array.from(e.target.files || []);
+          const res = await window.MindseyeHooks.transcription.handleFiles(files);
+          showTranscriptionResult(res);
+        };
+      }
+      break;
+    }
+    case 'autotrader': {
+      const status = window.MindseyeHooks.autoTrader.status();
+      root.innerHTML = `<div class=\"hub-section\"><h4>💸 Auto-Trader / Pattern Detector</h4><div class=\"hub-row\"><button class=\"hub-button\" id=\"autoTraderRun\">Run scan</button><div id=\"autoTraderStatus\" style=\"font-size:12px; color:#ccc;\">Last run: ${status.lastRun || '—'}, findings: ${status.findings || 0}</div></div></div>`;
+      const btn = root.querySelector('#autoTraderRun');
+      const stat = root.querySelector('#autoTraderStatus');
+      if (btn && stat) {
+        btn.onclick = async () => {
+          btn.disabled = true; btn.textContent = 'Running...';
+          const res = await window.MindseyeHooks.autoTrader.run();
+          btn.disabled = false; btn.textContent = 'Run scan';
+          const newStatus = window.MindseyeHooks.autoTrader.status();
+          stat.textContent = `Last run: ${newStatus.lastRun || 'now'}, findings: ${newStatus.findings || (res && res.findings) || 0}`;
+          updateControlHubHUD(true, 'Auto-Trader run');
+        };
+      }
+      break;
+    }
+    case 'twitter': {
+      root.innerHTML = '<div class="hub-section"><h4>🐦 Twitter/X Scraper</h4><div class="hub-row"><input id="twitterQuery" class="hub-input" placeholder="Subject or Tweet ID"><button id="twitterLoad" class="hub-button">Load</button></div><div id="twitterOut" style="font-size:12px; color:#ccc; max-height:200px; overflow:auto;"></div></div>';
+      const input = root.querySelector('#twitterQuery');
+      const btn = root.querySelector('#twitterLoad');
+      const out = root.querySelector('#twitterOut');
+      if (btn && input && out) {
+        btn.onclick = async () => {
+          out.textContent = 'Loading...';
+          const res = await window.MindseyeHooks.twitter.load(input.value.trim());
+          if (res && res.ok) {
+            out.textContent = (res.tweets || []).map(t => `• ${t.text || JSON.stringify(t)}`).join('\n') || 'No tweets.';
+          } else {
+            out.textContent = 'Failed or not configured.';
+          }
+        };
+      }
+      break;
+    }
+    case 'resources': {
+      root.innerHTML = '<div class="hub-section"><h4>📁 Resource Drawer</h4><div class="hub-row"><button id="loadResources" class="hub-button">Refresh</button><input id="resFilter" class="hub-input" placeholder="Filter"></div><div id="resList" style="font-size:12px; color:#ccc; max-height:200px; overflow:auto;"></div></div>';
+      const btn = root.querySelector('#loadResources');
+      const filter = root.querySelector('#resFilter');
+      const list = root.querySelector('#resList');
+      async function refresh() {
+        list.textContent = 'Loading...';
+        const res = await window.MindseyeHooks.resources.load();
+        const items = (res && res.ok && Array.isArray(res.items)) ? res.items : [];
+        const q = (filter.value || '').toLowerCase();
+        const filtered = items.filter(i => !q || (i.name && i.name.toLowerCase().includes(q)) || (i.url && i.url.toLowerCase().includes(q)));
+        list.innerHTML = filtered.map(i => `<div style=\"margin:4px 0;\"><a href=\"${i.url}\" target=\"_blank\">${i.name || i.url}</a></div>`).join('') || 'No resources.';
+      }
+      if (btn) btn.onclick = refresh;
+      if (filter) filter.oninput = refresh;
+      refresh();
+      break;
+    }
+    case 'copyrepo': {
+      root.innerHTML = '<div class="hub-section"><h4>📓 Copy Repository</h4><div class="hub-row"><input id="repoUrl" class="hub-input" placeholder="https://github.com/owner/repo"></div><pre id="repoInstructions" style="white-space:pre-wrap; background:#111; padding:10px; border-radius:6px; border:1px solid #333; font-size:12px; color:#ddd;">Enter a GitHub URL to see Python instructions.</pre></div>';
+      const input = root.querySelector('#repoUrl');
+      const pre = root.querySelector('#repoInstructions');
+      function update() {
+        const url = (input.value || '').trim();
+        if (!url) { pre.textContent = 'Enter a GitHub URL to see Python instructions.'; return; }
+        const code = `import subprocess\n\nrepo_url = "${url}"\nclone_dir = "./repo_copy"\n\nsubprocess.run(["git", "clone", repo_url, clone_dir], check=True)\nprint("Cloned to", clone_dir)`;
+        pre.textContent = code;
+      }
+      if (input && pre) input.oninput = update;
+      break;
+    }
+    default: {
+      root.innerHTML = '';
+    }
+  }
+}
+
 // Suggestions button cooldown functions
 function startSuggestionsCooldown() {
   if (suggestionsCooldownActive) return;
