@@ -4,6 +4,7 @@ AmericasGame.txt
 Argyle🎧Podcasts.txt
 BasketballDocs.txt
 ManjulasRecipes.txt
+NBAFinals.txt
 RedLetterMedia.txt
 Trailers.txt
 Movie.txt
