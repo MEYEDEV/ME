@@ -1166,7 +1166,7 @@ function showWelcomeMessage() {
           <strong>Speed Control:</strong><br>
           • <kbd>-</kbd> - Decrease speed<br>
           • <kbd>+</kbd> - Increase speed<br>
-          • <kbd>Space</kbd> - Pause/Resume animation speed<br><br>
+          • <kbd>Space</kbd> - Pause/Resume speed<br><br>
           
           <strong>Gamepad Controls 🎮 (PS5):</strong><br>
           • <kbd>Triangle △</kbd> - Toggle video player<br>
