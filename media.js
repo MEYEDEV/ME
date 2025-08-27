@@ -1139,21 +1139,21 @@ function showWelcomeMessage() {
           • Upload .txt files with YouTube URLs<br><br>
           
           <strong>Music Player Controls:</strong><br>
-          • Click Music button to open/close player<br>
           • Right-click to Play/pause<br>
-          • Use playlist controls to navigate videos<br>
-          • Upload .txt files with Radio URLs<br><br>
+          • Click Music button to open/close player<br>
+          • Upload .txt files with Radio URLs<br>
+          • Use playlist controls to navigate music<br><br>
 
           <strong>Keyboard Shortcuts:</strong><br>
           • <kbd>H</kbd> - Open/close mindseye hub<br>
           • <kbd>V</kbd> - Open/close video player<br>
           • <kbd>M</kbd> - Open/close music panel<br>
-          • <kbd>Space</kbd> - Pause/unpause animation speed<br>
+          • <kbd>Space</kbd> - Pause/unpause speed<br>
           • <kbd>ESC</kbd> - Close all panels<br>
           • <kbd>D</kbd> - Toggle drawing mode<br>
           • <kbd>C</kbd> - Drawing Colour<br>
           • <kbd>X</kbd> - Clear drawings<br>
-          • <kbd>W</kbd> - Line Size<br>
+          • <kbd>W</kbd> - Change Line Size<br>
           • <kbd>S</kbd> - Smooth last line<br>
           • <kbd>F</kbd> - Flash drawings<br><br>
           
