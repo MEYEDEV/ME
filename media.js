@@ -1174,6 +1174,8 @@ function showWelcomeMessage() {
           • LA Forster<br>
           • Megan Bean<br>
           • Sarah West<br>
+          • Alison Stanton<br>
+          • Joanna Ballard<br>
           • AAAPPP🥰<br>
           • CQC, PSA<br>
           • Github, Heygen<br>
