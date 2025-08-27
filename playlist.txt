@@ -1,6 +1,12 @@
 s25_playlist.txt
+AINews.txt
+AmericasGame.txt
 Argyle🎧Podcasts.txt
+BasketballDocs.txt
+ManjulasRecipes.txt
+RedLetterMedia.txt
 Trailers.txt
 Movie.txt
+JayceWheeledWarriors.txt
 Top25.txt
 Visuals.txt
