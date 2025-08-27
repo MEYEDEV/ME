@@ -1173,10 +1173,14 @@ function showWelcomeMessage() {
           • <kbd>.</kbd> - Bubble Collect<br><br>
 
           <strong>Special Thanks to::</strong><br>
-          • LAForster<br>
+          • LA Forster<br>
+          • Megan Bean<br>
+          • Sarah West<br>
           • CQC, PSA<br>
-          • Github, Render<br>
-          • Porkhub, Huggingface<br>
+          • Github, Heygen<br>
+          • Youtube, 11Labs<br>
+          • Railway, Render<br>
+          • Porkbun, Huggingfaces<br>
           • To be continued...
         </div>
       `;
