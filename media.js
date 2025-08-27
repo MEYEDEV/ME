@@ -1159,16 +1159,16 @@ function showWelcomeMessage() {
           • <kbd>+</kbd> - Increase speed<br>
           • <kbd>Space</kbd> - Pause/Resume animation speed<br><br>
           
-          <strong>Gamepad Controls (PS5):</strong><br>
-          • <kbd>Triangle</kbd> - Toggle video player<br>
-          • <kbd>Circle</kbd> - Toggle music panel<br>
-          • <kbd>Square</kbd> - Close all panels<br>
+          <strong>Gamepad Controls 🎮 (PS5):</strong><br>
+          • <kbd>Triangle △</kbd> - Toggle video player<br>
+          • <kbd>Circle ⭕️</kbd> - Toggle music panel<br>
+          • <kbd>Square 🟪</kbd> - Close all panels<br>
           • <kbd>L1/R1</kbd> - Switch bubbles<br>
           • <kbd>R2</kbd> - Bubble Bounce<br>
           • <kbd>L2</kbd> - Bubble Collect<br>
-          • <kbd>X</kbd> - Select music track<br><br>
-          • <kbd>Shift</kbd> - Bubble Bounce<br>
-          • <kbd>.</kbd> - Bubble Collect<br><br>
+          • <kbd>X ❎</kbd> - Select music track<br>
+          • <kbd>Shift</kbd> - Bubble Bounce🎹<br>
+          • <kbd>.</kbd> - Bubble Collect⌨<br><br>
 
           <strong>😀 Special Thanks to: 😀</strong><br>
           • LA Forster<br>
