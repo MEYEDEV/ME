@@ -1851,7 +1851,15 @@ const themePresets = {
     "goalCooldown": 0,
     "ballVelocityBoost": 0,
     "ballVelocityDecay": 0,
-    "attachments": [],
+    "attachments": [
+      {
+        "name": "CQC - Janet Pitt Review - 200825.mp4",
+        "type": "video/mp4",
+        "url": "media/CQC.mp4",
+        "isObjectUrl": true,
+        "originalName": "CQC - Janet Pitt Review - 200825.mp4"
+      }
+    ],
     "urls": []
   },
   {
