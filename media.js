@@ -1179,10 +1179,11 @@ function showWelcomeMessage() {
           • AAAPPP🥰<br>
           • CQC, PSA<br>
           • Github, Heygen<br>
+          • ChatGPT, Cursor<br>
           • Youtube, 11Labs<br>
           • Railway, Render<br>
           • Porkbun, Huggingfaces<br>
-          • Not to be continued...
+          • Not to be repeated...
         </div>
       `;
     }
