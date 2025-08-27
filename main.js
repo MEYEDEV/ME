@@ -2415,7 +2415,7 @@ function openAutoTrader() {
 }
 function openTwitterScraper() {
   // Legal warning placeholder
-  alert('Legal note: Ensure compliance with Twitter/X Terms and local laws before scraping.');
+  alert('Legal note: Ensure compliance with Twitter/X Terms and local laws before analysing.');
   showControlHubPanel();
   renderControlHubSection('twitter');
   updateControlHubHUD(true, 'Opened Twitter/X Scraper');
@@ -2755,7 +2755,7 @@ function renderControlHubSection(section) {
       break;
     }
     case 'twitter': {
-      root.innerHTML = '<div class="hub-section"><h4>🐦 Twitter/X Scraper</h4><div class="hub-row"><input id="twitterQuery" class="hub-input" placeholder="Subject or Tweet ID"><button id="twitterLoad" class="hub-button">Load</button></div><div id="twitterOut" style="font-size:12px; color:#ccc; max-height:200px; overflow:auto;"></div></div>';
+      root.innerHTML = '<div class="hub-section"><h4>🐦 Twitter/X Analyser</h4><div class="hub-row"><input id="twitterQuery" class="hub-input" placeholder="Subject or Tweet ID"><button id="twitterLoad" class="hub-button">Load</button></div><div id="twitterOut" style="font-size:12px; color:#ccc; max-height:200px; overflow:auto;"></div></div>';
       const input = root.querySelector('#twitterQuery');
       const btn = root.querySelector('#twitterLoad');
       const out = root.querySelector('#twitterOut');
