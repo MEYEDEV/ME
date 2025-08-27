@@ -2648,7 +2648,7 @@ function renderControlHubSection(section) {
   if (!root) return;
   switch(section) {
     case 'bubbleTracker': {
-      root.innerHTML = '<div class="hub-section"><h4>🧭 Bubble Tracker</h4><div class="hub-row">Bubbles on canvas: <strong id="btCount">0</strong></div><div class="hub-row">Timeline: <span id="btFrom">—</span> → <span id="btTo">—</span></div><div class="hub-row" style="font-size:12px; color:#ccc;">Earliest and latest createdDate of bubbles</div></div>';
+      root.innerHTML = '<div class="hub-section"><h4>🧭 Bubble Tracker</h4><div class="hub-row">Bubbles on canvas: <strong id="btCount">0</strong></div><div class="hub-row">Timeline: <span id="btFrom">—</span> → <span id="btTo">—</span></div><div class="hub-row" style="font-size:12px; color:#ccc;">⏯️ Play Timeline Audio / Search: _____</div></div>';
       const update = () => {
         const count = Array.isArray(ideas) ? ideas.length : 0;
         const btCount = root.querySelector('#btCount');
