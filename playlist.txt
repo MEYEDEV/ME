@@ -9,5 +9,6 @@ RedLetterMedia.txt
 Trailers.txt
 Movie.txt
 JayceWheeledWarriors.txt
+WrestlingShoots.txt
 Top25.txt
 Visuals.txt
