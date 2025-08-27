@@ -1179,10 +1179,10 @@ function showWelcomeMessage() {
           • Joanna Ballard<br>
           • AAAPPP🥰<br>
           • CQC, PSA<br>
-          • Github, Heygen<br>
           • ChatGPT, Cursor<br>
           • Youtube, 11Labs<br>
           • Railway, Render<br>
+          • Github, Heygen<br>
           • Porkbun, Huggingfaces<br>
           • Not to be repeated...
         </div>
