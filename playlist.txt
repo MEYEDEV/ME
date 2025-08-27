@@ -11,5 +11,6 @@ Trailers.txt
 Movie.txt
 JayceWheeledWarriors.txt
 WrestlingShoots.txt
+TheRacoons.txt
 Top25.txt
 Visuals.txt
