@@ -1181,7 +1181,7 @@ function showWelcomeMessage() {
           • Youtube, 11Labs<br>
           • Railway, Render<br>
           • Github, Heygen<br>
-          • Porkbun, Huggingfaces<br>
+          • Porkbun, Huggingface<br>
           • Not to be repeated...
         </div>
       `;
