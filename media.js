@@ -1167,21 +1167,20 @@ function showWelcomeMessage() {
           • <kbd>R2</kbd> - Bubble Bounce<br>
           • <kbd>L2</kbd> - Bubble Collect<br>
           • <kbd>X</kbd> - Select music track<br><br>
-          
-          <strong>Gamepad Controls (Keyboard):</strong><br>
           • <kbd>Shift</kbd> - Bubble Bounce<br>
           • <kbd>.</kbd> - Bubble Collect<br><br>
 
-          <strong>Special Thanks to::</strong><br>
+          <strong>😀 Special Thanks to: 😀</strong><br>
           • LA Forster<br>
           • Megan Bean<br>
           • Sarah West<br>
+          • AAAPPP🥰<br>
           • CQC, PSA<br>
           • Github, Heygen<br>
           • Youtube, 11Labs<br>
           • Railway, Render<br>
           • Porkbun, Huggingfaces<br>
-          • To be continued...
+          • Not to be continued...
         </div>
       `;
     }
