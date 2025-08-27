@@ -1145,9 +1145,9 @@ function showWelcomeMessage() {
           • Use playlist controls to navigate music<br><br>
 
           <strong>Keyboard Shortcuts:</strong><br>
-          • <kbd>H</kbd> - Open/close mindseye hub<br>
           • <kbd>V</kbd> - Open/close video player<br>
           • <kbd>M</kbd> - Open/close music panel<br>
+          • <kbd>H</kbd> - Open/close mindseye hub<br>
           • <kbd>Space</kbd> - Pause/unpause speed<br>
           • <kbd>ESC</kbd> - Close all panels<br>
           • <kbd>D</kbd> - Toggle drawing mode<br>
