@@ -9,8 +9,10 @@ NBAFinals.txt
 RedLetterMedia.txt
 Trailers.txt
 Movie.txt
+DungeonsDragons.txt
 JayceWheeledWarriors.txt
 WrestlingShoots.txt
+TheGummiBears.txt
 TheRacoons.txt
 Top25.txt
 Visuals.txt
