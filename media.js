@@ -1172,8 +1172,8 @@ function showWelcomeMessage() {
 
           <strong>😀 Special Thanks to: 😀</strong><br>
           • LA Forster<br>
-          • Megan Bean<br>
           • Sarah West<br>
+          • Megan Bean<br>
           • Alison Stanton<br>
           • Joanna Ballard<br>
           • AAAPPP🥰<br>
