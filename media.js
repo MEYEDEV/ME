@@ -1130,7 +1130,7 @@ function showWelcomeMessage() {
     const contentDiv = readPanel.querySelector('div[style*="color: white"]');
     if (contentDiv) {
       contentDiv.innerHTML = `
-        <div style="margin-bottom: 15px; font-weight: bold; color: gold;">🎬 Video Player Guide</div>
+        <div style="margin-bottom: 15px; font-weight: bold; color: gold;">🎬 MindsEye Guide</div>
         <div style="color: white; margin-bottom: 20px; line-height: 1.4;">
           <strong>Video Player Controls:</strong><br>
           • Click video button to open/close player<br>
@@ -1167,6 +1167,10 @@ function showWelcomeMessage() {
           • <kbd>-</kbd> - Decrease speed<br>
           • <kbd>+</kbd> - Increase speed<br>
           • <kbd>Space</kbd> - Pause/Resume speed<br><br>
+
+          <strong>Avatar Assistant:</strong><br>
+          • <kbd>A</kbd> - Toggle assistant On/off<br>
+          • <kbd>Z</kbd> - Next assistant<br><br>
           
           <strong>Gamepad Controls 🎮 (PS5):</strong><br>
           • <kbd>Triangle △</kbd> - Toggle video player<br>
