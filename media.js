@@ -1166,7 +1166,7 @@ function showWelcomeMessage() {
           • <kbd>X ❎</kbd> - Select music track<br>
           • <kbd>L1/R1</kbd> - Switch bubbles<br>
           • <kbd>R2 Shift </kbd> - Bubble Bounce☄️<br>
-          • <kbd>L2 .</kbd> - Bubble Collect🥍<br>
+          • <kbd>L2 .</kbd> - Bubble Collect🥍<br><br>
 
           <strong>😀 Special Thanks to: 😀</strong><br>
           • LA Forster<br>
