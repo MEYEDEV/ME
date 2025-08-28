@@ -7313,7 +7313,7 @@ function openTimelinePlayback() {
   // Populate list
   items.forEach((item, idx) => {
     const row = document.createElement('div');
-    row.className = 'hud-item' + (idx === 0 ? ' active' : '');
+    row.className = 'hud-item';
     row.style.display = 'flex';
     row.style.alignItems = 'center';
     row.style.gap = '8px';
@@ -7366,9 +7366,14 @@ function openTimelinePlayback() {
   loading.style.display = 'none';
   content.style.display = 'flex';
   hud.style.display = 'block';
-
-  // Initial preview
-  timelineSelect(0);
+  // Hide preview panel and expand list to full width (view opens in new tab)
+  try {
+    const previewWrap = hud.querySelector('.hud-preview');
+    if (previewWrap) previewWrap.style.display = 'none';
+    listEl.style.width = '100%';
+    listEl.style.borderRight = 'none';
+    listEl.style.paddingRight = '0';
+  } catch (_) {}
   installTimelineKeys();
 }
 
@@ -7397,8 +7402,7 @@ function timelineSelect(index) {
   const dateEl = document.getElementById('timelineDate');
   if (dateEl) dateEl.textContent = formatIdeaDate(items[index].idea) || '—';
 
-  // Render preview
-  renderTimelinePreview(items[index]);
+  // Do not render inline preview; documents are opened via the View button
   // Update share URL field if visible
   const share = document.getElementById('timelineShare');
   if (share && share.style.display !== 'none') updateTimelineShareUrl();
