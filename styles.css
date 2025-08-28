@@ -766,9 +766,10 @@ button[data-png="bucheck"].has-png {
   max-height: 75vh;
   background: rgba(20, 20, 20, 0.9);
   color: white;
-  border: 2px solid #444;
+  border: 2px solid #FFB6C1; /* pale pink inner ring */
   border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  /* turquoise outer ring + existing drop shadow */
+  box-shadow: 0 0 0 3px #40E0D0, 0 10px 30px rgba(0,0,0,0.6);
   backdrop-filter: blur(8px);
   z-index: 65000;
   display: none;

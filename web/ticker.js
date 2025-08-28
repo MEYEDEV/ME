@@ -235,6 +235,10 @@ class NewsTicker {
                         <input type="color" id="news-settings-color" value="#ffffff" />
                     </label>
                     <label class="news-settings-row">
+                        <span>Ticker Colour</span>
+                        <input type="color" id="news-settings-accent" value="#8FE04A" />
+                    </label>
+                    <label class="news-settings-row">
                         <span>Speed</span>
                         <input type="range" id="news-settings-speed" min="20" max="200" step="2" />
                         <span id="news-settings-speed-value" class="news-settings-value"></span>
@@ -250,6 +254,7 @@ class NewsTicker {
         const speedEl = panel.querySelector('#news-settings-speed');
         const speedVal = panel.querySelector('#news-settings-speed-value');
         const resetBtn = panel.querySelector('#news-settings-reset');
+        const accentEl = panel.querySelector('#news-settings-accent');
 
         // Initialize controls from preferences
         if (visibleEl) visibleEl.checked = !!this.preferences.visible;
@@ -259,6 +264,7 @@ class NewsTicker {
             speedEl.value = String(this.preferences.speed || this.options.speed);
             if (speedVal) speedVal.textContent = `${speedEl.value}px/s`;
         }
+        if (accentEl) accentEl.value = this.preferences.accentColor || '#8FE04A';
 
         // Wire up events
         if (closeBtn) closeBtn.addEventListener('click', () => this.closeSettingsPanel());
@@ -283,6 +289,11 @@ class NewsTicker {
         if (colorEl) colorEl.addEventListener('input', () => {
             this.setHeadlineColor(colorEl.value);
             this.preferences.headlineColor = colorEl.value;
+            this.savePreferences();
+        });
+        if (accentEl) accentEl.addEventListener('input', () => {
+            this.setAccentColor(accentEl.value);
+            this.preferences.accentColor = accentEl.value;
             this.savePreferences();
         });
         if (speedEl) speedEl.addEventListener('input', () => {
@@ -440,9 +451,11 @@ class NewsTicker {
         const panel = document.getElementById('news-settings-panel');
         if (panel && panel.style.display !== 'none') {
             const colorEl = panel.querySelector('#news-settings-color');
+            const accentEl = panel.querySelector('#news-settings-accent');
             const speedEl = panel.querySelector('#news-settings-speed');
             const speedVal = panel.querySelector('#news-settings-speed-value');
             if (colorEl) colorEl.value = '#ffffff';
+            if (accentEl) accentEl.value = '#8FE04A';
             if (speedEl) speedEl.value = '60';
             if (speedVal) speedVal.textContent = '60px/s';
         }
@@ -464,6 +477,7 @@ class NewsTicker {
         if (typeof this.preferences.visible === 'boolean') this.setTickerVisible(this.preferences.visible);
         if (typeof this.preferences.speed === 'number') this.setSpeed(this.preferences.speed);
         if (typeof this.preferences.headlineColor === 'string') this.setHeadlineColor(this.preferences.headlineColor);
+        if (typeof this.preferences.accentColor === 'string') this.setAccentColor(this.preferences.accentColor);
         
         // Apply saved service preference if it exists and is valid
         if (this.preferences.service && typeof this.preferences.service === 'string') {
@@ -499,6 +513,27 @@ class NewsTicker {
         if (root) root.style.setProperty('--news-headline-color', color);
     }
 
+    setAccentColor(color) {
+        const root = this.container;
+        if (root) {
+            root.style.setProperty('--news-accent-color', color);
+            root.style.setProperty('--news-accent-glow', `${this.hexToRgba(color, 0.3)}`);
+        }
+    }
+
+    hexToRgba(hex, alpha = 1) {
+        try {
+            const c = hex.replace('#','');
+            const bigint = parseInt(c, 16);
+            const r = (bigint >> 16) & 255;
+            const g = (bigint >> 8) & 255;
+            const b = bigint & 255;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        } catch (_) {
+            return 'rgba(143, 224, 74, 0.3)';
+        }
+    }
+
     syncSettingsControls() {
         // Get elements from the settings panel (not from container)
         const panel = document.getElementById('news-settings-panel');
@@ -509,6 +544,7 @@ class NewsTicker {
         const colorEl = panel.querySelector('#news-settings-color');
         const speedEl = panel.querySelector('#news-settings-speed');
         const speedVal = panel.querySelector('#news-settings-speed-value');
+        const accentEl = panel.querySelector('#news-settings-accent');
         const prefs = this.preferences || {};
         
         if (visibleEl) visibleEl.checked = !!prefs.visible;
@@ -525,6 +561,7 @@ class NewsTicker {
             speedEl.value = String(v);
             if (speedVal) speedVal.textContent = `${v}px/s`;
         }
+        if (accentEl) accentEl.value = prefs.accentColor || '#8FE04A';
     }
 
     cycleToNextService() {
@@ -1106,6 +1143,7 @@ class NewsTicker {
             tickerContent.classList.remove('hidden');
             tickerContainer.style.background = '';
             tickerContainer.style.border = '';
+            tickerContainer.style.boxShadow = '';
             // Restore original button text and styling
             const currentService = this.serviceCycle[this.currentServiceIndex];
             serviceBtn.textContent = currentService.label;
@@ -1116,6 +1154,7 @@ class NewsTicker {
             tickerContent.classList.add('hidden');
             tickerContainer.style.background = 'transparent';
             tickerContainer.style.border = 'none';
+            tickerContainer.style.boxShadow = 'none';
             // Show indicator that ticker is hidden and restore button border
             serviceBtn.textContent = '📤';
             serviceBtn.style.border = '2px solid #8FE04A';
