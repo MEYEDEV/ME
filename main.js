@@ -7314,8 +7314,51 @@ function openTimelinePlayback() {
   items.forEach((item, idx) => {
     const row = document.createElement('div');
     row.className = 'hud-item' + (idx === 0 ? ' active' : '');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '8px';
+
+    const meta = document.createElement('div');
+    meta.style.flex = '1';
     const dateStr = formatIdeaDate(item.idea) || 'Unknown date';
-    row.textContent = `${dateStr} — ${item.att.name || 'Document'}`;
+    meta.textContent = `${dateStr} — ${item.att.name || 'Document'}`;
+    meta.onclick = () => timelineSelect(idx);
+
+    const viewBtn = document.createElement('button');
+    viewBtn.textContent = 'View';
+    viewBtn.className = 'hud-btn';
+    viewBtn.title = 'Open in new tab';
+    viewBtn.onclick = (e) => {
+      e.stopPropagation();
+      try {
+        const url = item.att.url || item.att.dataUrl;
+        if (url) {
+          const a = document.createElement('a');
+          a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }
+      } catch (_) {}
+    };
+
+    const dlBtn = document.createElement('button');
+    dlBtn.textContent = 'Download';
+    dlBtn.className = 'hud-btn';
+    dlBtn.title = 'Download this document';
+    dlBtn.onclick = (e) => {
+      e.stopPropagation();
+      try {
+        const url = item.att.url || item.att.dataUrl;
+        if (url) {
+          const a = document.createElement('a');
+          a.href = url; a.download = item.att.name || 'document';
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }
+      } catch (_) {}
+    };
+
+    row.appendChild(meta);
+    row.appendChild(viewBtn);
+    row.appendChild(dlBtn);
     row.onclick = () => timelineSelect(idx);
     listEl.appendChild(row);
   });
