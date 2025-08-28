@@ -560,6 +560,42 @@ function buildExportFilename(opts) {
   return `Mindseye-Bundle_${range}${tags}.zip`;
 }
 
+// ===== SAR ICO helpers =====
+function buildIcoDraft(c) {
+  const org = c.org || 'the organisation';
+  const when = c.sarDate || '[date]';
+  return `Dear ICO,\n\nI am writing to escalate a Subject Access Request submitted to ${org} on ${when}. To date, they have failed to respond within the statutory period and have not provided legal grounds for delay.\n\nA full communication timeline, including the original request and correspondence, is included in the attached bundle.\n\nI request a formal investigation into their non-compliance under UK GDPR and the Data Protection Act 2018.\n\nYours sincerely,`;
+}
+
+async function exportIcoZip(sarCase, draftText) {
+  const JSZipRef = window.JSZip || JSZip;
+  const zip = new JSZipRef();
+  // Include draft as PDF and HTML
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>ICO Complaint</title></head><body><pre style="white-space:pre-wrap; font-family:Arial, sans-serif;">${escapeHtml(draftText)}</pre></body></html>`;
+  zip.file('evidence-summary.html', html);
+  try {
+    const { jsPDF } = window.jspdf || {};
+    if (jsPDF) {
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      doc.text(draftText, 20, 40, { maxWidth: 555 });
+      const blob = doc.output('blob');
+      zip.file('complaint-letter.pdf', blob);
+    }
+  } catch(_) {}
+  // Timeline CSV (placeholder)
+  const csv = 'bubble_id,date,time,title\n' + (ideas || []).map((a, i) => `${i},${a.createdDate || ''},${a.createdTime || ''},"${(a.title || '').replace(/"/g,'""')}"`).join('\n');
+  zip.file('timeline.csv', csv);
+  // Finalize
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const safeOrg = (sarCase.org || 'Org').replace(/[^a-z0-9_\-.]+/gi, '_');
+  a.download = `ico-escalation-${safeOrg}-${new Date().toISOString().split('T')[0]}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); document.body.removeChild(a); }, 1000);
+}
+
 
 function startDrawing(e) {
   if (!isDrawingMode) return;
@@ -2636,7 +2672,7 @@ window.openBroadcastMode = openBroadcastMode;
 
 // ===== SAR Tracker minimal integration =====
 function openSARTracker() {
-  // Open SAR tracker in a new tab
+  // Open SAR tracker in a new tab (requested behavior)
   window.open('https://jannerap.github.io/SAR/', '_blank');
   updateControlHubHUD(true, 'Opened SAR Tracker');
 }
@@ -2823,6 +2859,16 @@ window.MindseyeHooks = window.MindseyeHooks || {
   twitter: {
     load: async (queryOrId) => ({ ok: true, tweets: [] })
   },
+  sar: {
+    getCases: () => {
+      try { return JSON.parse(localStorage.getItem('mindsEye_sar_cases') || '[]'); } catch(_) { return []; }
+    },
+    saveCases: (cases) => {
+      try { localStorage.setItem('mindsEye_sar_cases', JSON.stringify(cases || [])); } catch(_) {}
+    },
+    addEvidence: (caseId, file) => Promise.resolve({ ok: true, caseId, fileName: file && file.name }),
+    exportIcoBundle: async (sarCase) => ({ ok: true })
+  },
   resources: {
     load: async () => {
       try {
@@ -2983,6 +3029,138 @@ function renderControlHubSection(section) {
           }
         };
       }
+      break;
+    }
+    case 'sar': {
+      const cases = window.MindseyeHooks.sar.getCases();
+      root.innerHTML = '<div class="hub-section"><h4>🐾 SAR Tracker + ICO</h4>'
+        + '<div class="hub-row" style="gap:8px; flex-wrap:wrap;">'
+        + '<input id="sarOrg" class="hub-input" placeholder="Organisation (e.g., Devon NHS)">' 
+        + '<input id="sarDate" class="hub-input" placeholder="SAR Date YYYY-MM-DD" style="max-width:160px;">'
+        + '<button id="sarAdd" class="hub-button">Add SAR</button>'
+        + '</div>'
+        + '<div id="sarList" style="font-size:12px; color:#ccc; max-height:220px; overflow:auto; margin-top:6px;"></div>'
+        + '<div id="sarDetail" style="margin-top:8px; padding:8px; border:1px solid #333; border-radius:6px; display:none;"></div>'
+        + '</div>';
+
+      const list = root.querySelector('#sarList');
+      const detail = root.querySelector('#sarDetail');
+      const addBtn = root.querySelector('#sarAdd');
+      const orgIn = root.querySelector('#sarOrg');
+      const dateIn = root.querySelector('#sarDate');
+
+      function calcDueDate(isoDate, extensionDays) {
+        try { const d = new Date(isoDate + 'T00:00:00'); d.setDate(d.getDate() + (extensionDays || 28)); return d.toISOString().split('T')[0]; } catch(_) { return ''; }
+      }
+      function isOverdue(due) { try { return new Date(due) < new Date(new Date().toISOString().split('T')[0]); } catch(_) { return false; } }
+      function statusBadge(c) {
+        if (c.icoStatus && c.icoStatus !== 'None') return 'ICO Triggered';
+        const due = calcDueDate(c.sarDate, c.extensionClaimed ? 90 : 28);
+        return isOverdue(due) ? 'Overdue' : (c.status || 'Waiting');
+      }
+      function humanStatus(c) {
+        const due = calcDueDate(c.sarDate, c.extensionClaimed ? 90 : 28);
+        const s = statusBadge(c);
+        return `${s} • Due: ${due}`;
+      }
+
+      function renderList() {
+        const items = window.MindseyeHooks.sar.getCases();
+        list.innerHTML = items.map((c, idx) => {
+          const due = calcDueDate(c.sarDate, c.extensionClaimed ? 90 : 28);
+          const overdue = isOverdue(due);
+          const color = (c.icoStatus && c.icoStatus !== 'None') ? '#ff5252' : (overdue ? '#ff6b6b' : '#8FE04A');
+          return `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px; border:1px solid #333; border-radius:6px; margin:4px 0; background:rgba(255,255,255,0.03);">
+            <div style="flex:1;">
+              <div style="color:#fff;">${c.org || 'Unknown org'}</div>
+              <div style="color:#bbb; font-size:11px;">SAR: ${c.sarDate || '—'} • ${humanStatus(c)}</div>
+            </div>
+            <button data-idx="${idx}" class="hub-button" style="background:${color}; border-color:${color}; color:#000;">Open</button>
+          </div>`;
+        }).join('') || 'No SAR cases yet.';
+        list.querySelectorAll('button[data-idx]').forEach(btn => {
+          btn.onclick = () => showDetail(parseInt(btn.getAttribute('data-idx')));
+        });
+      }
+
+      function showDetail(idx) {
+        const items = window.MindseyeHooks.sar.getCases();
+        const c = items[idx];
+        if (!c) { detail.style.display = 'none'; return; }
+        const due = calcDueDate(c.sarDate, c.extensionClaimed ? 90 : 28);
+        const overdue = isOverdue(due);
+        const icoUrl = 'https://ico.org.uk/make-a-complaint/your-personal-information-concerns/';
+        detail.style.display = 'block';
+        detail.innerHTML = `
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <div style="color:#fff; font-weight:bold;">${c.org}</div>
+            <div style="color:${overdue ? '#ff6b6b' : '#ccc'}; font-size:12px;">Due: ${due} ${overdue ? '(Expired)' : ''}</div>
+          </div>
+          <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
+            <label style="color:#ccc; font-size:12px;">SAR Date: <input id="sarEditDate" value="${c.sarDate || ''}" class="hub-input" style="max-width:160px;"></label>
+            <label style="color:#ccc; font-size:12px;">Extension: <input id="sarEditExt" type="checkbox" ${c.extensionClaimed ? 'checked' : ''}></label>
+            <label style="color:#ccc; font-size:12px;">Status: <select id="sarEditStatus" class="hub-input" style="max-width:160px;">
+              ${['Waiting','Acknowledged','Response Received','Escalated','Closed'].map(s => `<option value="${s}" ${c.status===s?'selected':''}>${s}</option>`).join('')}
+            </select></label>
+          </div>
+          <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="icoEscalate" class="hub-button" style="background:#ff5252; border-color:#ff5252; color:#000;">🚨 Escalate to ICO</button>
+            <a href="${icoUrl}" target="_blank" class="hub-button" style="text-decoration:none;">Open ICO Form</a>
+          </div>
+          <div id="icoPanel" style="display:${c.icoStatus && c.icoStatus!=='None' ? 'block':'none'}; margin-top:8px; padding:8px; border:1px dashed #444; border-radius:6px;">
+            <div style="font-weight:bold; color:#fff;">ICO Complaint Draft</div>
+            <textarea id="icoDraft" style="width:100%; height:120px; background:#111; color:#fff; border:1px solid #333; border-radius:6px; padding:6px;">${buildIcoDraft(c)}</textarea>
+            <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
+              <input type="file" id="icoEvidence" multiple>
+              <button id="icoAddEvidence" class="hub-button">Add Evidence</button>
+              <button id="icoExport" class="hub-button">Export ICO Bundle</button>
+            </div>
+            <div id="icoStatus" style="font-size:11px; color:#bbb; margin-top:4px;"></div>
+          </div>
+        `;
+
+        const editDate = detail.querySelector('#sarEditDate');
+        const editExt = detail.querySelector('#sarEditExt');
+        const editStatus = detail.querySelector('#sarEditStatus');
+        if (editDate) editDate.onchange = () => { c.sarDate = editDate.value; window.MindseyeHooks.sar.saveCases(items); renderList(); showDetail(idx); };
+        if (editExt) editExt.onchange = () => { c.extensionClaimed = !!editExt.checked; window.MindseyeHooks.sar.saveCases(items); renderList(); showDetail(idx); };
+        if (editStatus) editStatus.onchange = () => { c.status = editStatus.value; window.MindseyeHooks.sar.saveCases(items); renderList(); showDetail(idx); };
+
+        const panel = detail.querySelector('#icoPanel');
+        const escalateBtn = detail.querySelector('#icoEscalate');
+        if (escalateBtn) escalateBtn.onclick = () => { c.icoStatus = 'Triggered'; window.MindseyeHooks.sar.saveCases(items); if (panel) panel.style.display = 'block'; renderList(); };
+
+        const addEvBtn = detail.querySelector('#icoAddEvidence');
+        const fileIn = detail.querySelector('#icoEvidence');
+        const icoStatus = detail.querySelector('#icoStatus');
+        if (addEvBtn && fileIn) addEvBtn.onclick = async () => {
+          if (!fileIn.files || !fileIn.files.length) return;
+          icoStatus.textContent = 'Uploading evidence...';
+          for (const f of Array.from(fileIn.files)) {
+            await window.MindseyeHooks.sar.addEvidence(c.id, f);
+          }
+          icoStatus.textContent = 'Evidence added.';
+        };
+
+        const exportBtn = detail.querySelector('#icoExport');
+        if (exportBtn) exportBtn.onclick = async () => {
+          icoStatus.textContent = 'Building ICO bundle...';
+          try {
+            await ensureExportLibraries();
+            await exportIcoZip(c, detail.querySelector('#icoDraft').value || buildIcoDraft(c));
+            icoStatus.textContent = 'ICO bundle exported.';
+          } catch (e) {
+            icoStatus.textContent = 'Export failed.';
+          }
+        };
+      }
+
+      if (addBtn) addBtn.onclick = () => {
+        const items = window.MindseyeHooks.sar.getCases();
+        const c = { id: 'sar-' + Date.now(), org: (orgIn && orgIn.value) || '', sarDate: (dateIn && dateIn.value) || '', extensionClaimed: false, status: 'Waiting', icoStatus: 'None' };
+        items.push(c); window.MindseyeHooks.sar.saveCases(items); renderList();
+      };
+      renderList();
       break;
     }
     case 'resources': {
