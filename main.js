@@ -382,6 +382,185 @@ function toggleDrawingMode() {
   }
 }
 
+// ===== Export Bundle core helpers =====
+async function ensureExportLibraries() {
+  if (!window.JSZip) {
+    await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+  }
+  if (!window.jspdf && !window.jsPDF) {
+    await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+  }
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+  });
+}
+
+function readExportOptions(root) {
+  const g = id => root.querySelector(id);
+  return {
+    includePdf: !!(g('#expIncludePdf') && g('#expIncludePdf').checked),
+    includeHtml: !!(g('#expIncludeHtml') && g('#expIncludeHtml').checked),
+    includeZip: !!(g('#expIncludeZip') && g('#expIncludeZip').checked),
+    embedThumbs: !!(g('#expEmbedThumbs') && g('#expEmbedThumbs').checked),
+    includeMap: !!(g('#expIncludeMap') && g('#expIncludeMap').checked),
+    from: (g('#expFrom') && g('#expFrom').value) || '',
+    to: (g('#expTo') && g('#expTo').value) || '',
+    tags: ((g('#expTags') && g('#expTags').value) || '').split(',').map(s => s.trim()).filter(Boolean)
+  };
+}
+
+function withinRange(idea, from, to) {
+  const d = idea && idea.createdDate ? idea.createdDate : null;
+  if (!d) return true;
+  if (from && d < from) return false;
+  if (to && d > to) return false;
+  return true;
+}
+
+async function buildExportBundle(opts) {
+  const JSZipRef = window.JSZip || (window.jspdf && window.jspdf.JSZip) || JSZip; // safety
+  const zip = new JSZipRef();
+  const meta = { generatedAt: new Date().toISOString(), range: { from: opts.from || null, to: opts.to || null }, tags: opts.tags };
+
+  // Collect timeline map (optional)
+  if (opts.includeMap) {
+    try {
+      const canvas = document.getElementById('canvas');
+      if (canvas) {
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1];
+        zip.file('timeline-map.png', base64, { base64: true });
+      }
+    } catch(_) {}
+  }
+
+  // Collect documents/media per bubble
+  const documents = [];
+  const media = [];
+  const entries = [];
+  (ideas || []).forEach((idea, idx) => {
+    if (!withinRange(idea, opts.from, opts.to)) return;
+    const entryId = `b${idx}`;
+    entries.push({ id: entryId, title: idea.title || `Bubble ${idx + 1}`, date: idea.createdDate || '', time: idea.createdTime || '', description: idea.description || '' });
+    if (Array.isArray(idea.attachments)) {
+      idea.attachments.forEach((att, aidx) => {
+        const type = (att && att.type) || (att && att.name ? guessMimeType(att.name) : '');
+        const isDoc = !(type && (type.startsWith('audio/') || type.startsWith('video/')));
+        const entry = { bubbleId: entryId, name: att.name || `file-${aidx}`, url: att.url || att.dataUrl, type: type || 'application/octet-stream' };
+        if (isDoc) documents.push(entry); else media.push(entry);
+      });
+    }
+    if (idea.audio && idea.audio.url) {
+      media.push({ bubbleId: entryId, name: idea.audio.name || 'bubble-audio', url: idea.audio.url, type: 'audio/*' });
+    }
+  });
+
+  // Fetch and add files (best-effort; skip failures)
+  async function addRemoteFileToZip(path, url) {
+    try {
+      if (!url) return;
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const arr = await blob.arrayBuffer();
+      zip.file(path, arr);
+    } catch(_) {}
+  }
+
+  for (const d of documents) {
+    const safe = d.name.replace(/[^a-z0-9_\-.]+/gi, '_');
+    await addRemoteFileToZip(`documents/${safe}`, d.url);
+  }
+  for (const m of media) {
+    const safe = m.name.replace(/[^a-z0-9_\-.]+/gi, '_');
+    await addRemoteFileToZip(`media/${safe}`, m.url);
+  }
+
+  // contents.txt
+  const lines = [];
+  lines.push(`Generated: ${meta.generatedAt}`);
+  if (meta.range.from || meta.range.to) lines.push(`Range: ${meta.range.from || ''} .. ${meta.range.to || ''}`);
+  if (meta.tags && meta.tags.length) lines.push(`Tags: ${meta.tags.join(', ')}`);
+  lines.push('');
+  lines.push('Entries:');
+  entries.forEach(e => lines.push(`- ${e.date} ${e.time} | ${e.title} (${e.id})`));
+  lines.push('');
+  lines.push('Documents:');
+  documents.forEach(d => lines.push(`- ${d.bubbleId} | ${d.name}`));
+  lines.push('');
+  lines.push('Media:');
+  media.forEach(m => lines.push(`- ${m.bubbleId} | ${m.name}`));
+  zip.file('contents.txt', lines.join('\n'));
+
+  // summary.html
+  const html = buildSummaryHtml(entries, documents, media, opts);
+  zip.file('summary.html', html);
+
+  // summary.pdf (simple HTML->PDF render)
+  if (opts.includePdf) {
+    try {
+      const { jsPDF } = window.jspdf || {};
+      if (jsPDF) {
+        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+        const safeHtml = html.replace(/\n/g, '');
+        doc.html(`<div style="font-family:Arial, sans-serif; font-size:10pt;">${safeHtml}</div>`, {
+          callback: (pdf) => {
+            const pdfBlob = pdf.output('blob');
+            zip.file('summary.pdf', pdfBlob);
+          },
+          x: 20, y: 20, width: 555
+        });
+        // jsPDF html is async; small delay before returning zip
+        await new Promise(r => setTimeout(r, 500));
+      }
+    } catch(_) {}
+  }
+
+  return zip;
+}
+
+function buildSummaryHtml(entries, documents, media, opts) {
+  const rows = entries.map(e => `<h2 id="${e.id}">Timeline Entry - ${e.date} ${e.time} - ${escapeHtml(e.title)}</h2><p>${escapeHtml(e.description)}</p>`).join('');
+  const docList = documents.map(d => `<li>${d.bubbleId}: <a href="documents/${encodeURIComponent(d.name)}">${escapeHtml(d.name)}</a></li>`).join('');
+  const medList = media.map(m => `<li>${m.bubbleId}: <a href="media/${encodeURIComponent(m.name)}">${escapeHtml(m.name)}</a></li>`).join('');
+  const toc = entries.map(e => `<li><a href="#${e.id}">${escapeHtml(e.title)} — ${e.date}</a></li>`).join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Export Summary</title></head><body style="font-family:Arial, sans-serif; color:#111;">
+    <h1>Export Summary</h1>
+    <h3>Contents</h3>
+    <ol>${toc}</ol>
+    ${rows}
+    <h3>Media Index</h3>
+    <ul>${medList}</ul>
+    <h3>Documents</h3>
+    <ul>${docList}</ul>
+  </body></html>`;
+}
+
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c]));
+}
+
+async function downloadExportZip(zip, opts) {
+  const filename = buildExportFilename(opts);
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); document.body.removeChild(a); }, 1000);
+}
+
+function buildExportFilename(opts) {
+  const range = `${opts.from || 'ALL'}_to_${opts.to || 'ALL'}`;
+  const tags = (opts.tags && opts.tags.length) ? '_' + opts.tags.join('-') : '';
+  return `Mindseye-Bundle_${range}${tags}.zip`;
+}
+
+
 function startDrawing(e) {
   if (!isDrawingMode) return;
   
@@ -2425,6 +2604,11 @@ function openResourceDrawer() {
   renderControlHubSection('resources');
   updateControlHubHUD(true, 'Opened Resource Drawer');
 }
+function openExportBundle() {
+  showControlHubPanel();
+  renderControlHubSection('export');
+  updateControlHubHUD(true, 'Opened Export Bundle');
+}
 function openCopyRepository() {
   showControlHubPanel();
   renderControlHubSection('copyrepo');
@@ -2445,6 +2629,7 @@ window.openTranscriptionDropzone = openTranscriptionDropzone;
 window.openAutoTrader = openAutoTrader;
 window.openTwitterScraper = openTwitterScraper;
 window.openResourceDrawer = openResourceDrawer;
+window.openExportBundle = openExportBundle;
 window.openCopyRepository = openCopyRepository;
 window.openTutorialAssistant = openTutorialAssistant;
 window.openBroadcastMode = openBroadcastMode;
@@ -2827,6 +3012,37 @@ function renderControlHubSection(section) {
       if (btn) btn.onclick = refresh;
       if (filter) filter.oninput = refresh;
       refresh();
+      break;
+    }
+    case 'export': {
+      root.innerHTML = '<div class="hub-section"><h4>📦 Export Bundle .zip</h4><div class="hub-row" style="flex-wrap:wrap; gap:8px;">'
+        + '<label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#ccc;"><input type="checkbox" id="expIncludePdf" checked> PDF</label>'
+        + '<label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#ccc;"><input type="checkbox" id="expIncludeHtml" checked> HTML</label>'
+        + '<label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#ccc;"><input type="checkbox" id="expIncludeZip" checked> ZIP</label>'
+        + '<label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#ccc;"><input type="checkbox" id="expEmbedThumbs"> Embed thumbnails</label>'
+        + '<label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#ccc;"><input type="checkbox" id="expIncludeMap" checked> Include timeline map</label>'
+        + '</div><div class="hub-row" style="gap:8px;"><input id="expFrom" class="hub-input" placeholder="From YYYY-MM-DD" style="max-width:160px;"><input id="expTo" class="hub-input" placeholder="To YYYY-MM-DD" style="max-width:160px;"><input id="expTags" class="hub-input" placeholder="Tags (comma)" style="flex:1"></div>'
+        + '<div class="hub-row" style="gap:8px;"><button id="expRun" class="hub-button">Generate</button><span id="expStatus" style="font-size:12px; color:#ccc;"></span></div>'
+        + '<div id="expNotes" style="font-size:11px; color:#aaa; margin-top:6px;">One-click export of the selected timeline range. Outputs summary.html/pdf, contents.txt, and folders for media/documents into a ZIP.</div>'
+        + '</div>';
+      const btn = root.querySelector('#expRun');
+      const status = root.querySelector('#expStatus');
+      if (btn && status) {
+        btn.onclick = async () => {
+          btn.disabled = true; status.textContent = 'Preparing...';
+          try {
+            await ensureExportLibraries();
+            const opts = readExportOptions(root);
+            const bundle = await buildExportBundle(opts);
+            await downloadExportZip(bundle, opts);
+            status.textContent = 'Done. Download should begin.';
+          } catch (e) {
+            status.textContent = 'Export failed: ' + (e && e.message ? e.message : e);
+          } finally {
+            btn.disabled = false;
+          }
+        };
+      }
       break;
     }
     case 'copyrepo': {
