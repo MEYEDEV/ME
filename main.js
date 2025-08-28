@@ -2442,7 +2442,7 @@ function openAnalysisIframe(type) {
       // Start cooldown for ideas button
       startIdeasCooldown();
     } else if (type === 'karaoke') {
-      iframe.src = 'https://singa.com/en/';
+      iframe.src = 'https://www.karafun.co.uk/web/?song=5489';
     } else {
       iframe.src = 'https://ajanner.com';
     }
