@@ -6661,6 +6661,13 @@ function closeAllPanels() {
     logger.debug('🚪 Analysis iframe closed via ESC');
   }
   
+  // Close Control Hub
+  const controlHub = document.getElementById('controlHubPanel');
+  if (controlHub && controlHub.style.display !== 'none') {
+    hideControlHubPanel();
+    logger.debug('🚪 Control Hub closed via ESC');
+  }
+  
   // Close music panel
   const musicPanel = document.getElementById('musicPanel');
   if (musicPanel && musicPanel.style.display === 'block') {
@@ -6770,6 +6777,410 @@ function handleMusicTrackSelection() {
     }
   }
 }
+
+// ===== TIMELINE & MEDIA HUD OVERLAYS =====
+let _timelineState = { items: [], index: 0, keyHandler: null };
+let _mediaState = { items: [], index: 0, keyHandler: null };
+
+function formatIdeaDate(idea) {
+  try {
+    const d = idea && idea.createdDate ? idea.createdDate : null;
+    const t = idea && idea.createdTime ? idea.createdTime : null;
+    if (d && t) return `${d} ${t}`;
+    if (d) return d;
+  } catch (_) {}
+  return '';
+}
+
+function parseIdeaDate(idea) {
+  try {
+    const d = idea && idea.createdDate ? idea.createdDate : null;
+    const t = idea && idea.createdTime ? idea.createdTime : null;
+    if (d && t) return new Date(`${d}T${t}`);
+    if (d) return new Date(`${d}T00:00:00`);
+  } catch (_) {}
+  return new Date(0);
+}
+
+function isDocumentAttachment(att) {
+  const type = (att && att.type) || (att && att.name ? guessMimeType(att.name) : '');
+  if (!type) return true;
+  if (type.startsWith('audio/') || type.startsWith('video/') || type.startsWith('image/')) return false;
+  return true;
+}
+
+function isMediaAttachment(att) {
+  const type = (att && att.type) || (att && att.name ? guessMimeType(att.name) : '');
+  if (!type) return false;
+  return type.startsWith('audio/') || type.startsWith('video/');
+}
+
+// ---- Timeline HUD (Documents)
+function openTimelinePlayback() {
+  const hud = document.getElementById('timelineHUD');
+  const loading = document.getElementById('timelineLoading');
+  const content = document.getElementById('timelineContent');
+  const empty = document.getElementById('timelineEmpty');
+  const listEl = document.getElementById('timelineList');
+  const dateEl = document.getElementById('timelineDate');
+  if (!hud || !loading || !content || !empty || !listEl || !dateEl) return;
+
+  // Build list of document attachments across all bubbles
+  loading.style.display = 'block';
+  content.style.display = 'none';
+  empty.style.display = 'none';
+  listEl.innerHTML = '';
+
+  const items = [];
+  try {
+    (ideas || []).forEach((idea, ideaIndex) => {
+      if (!Array.isArray(idea.attachments)) return;
+      idea.attachments.forEach((att, attIndex) => {
+        if (!att || !isDocumentAttachment(att)) return;
+        items.push({ idea, ideaIndex, att, attIndex, date: parseIdeaDate(idea) });
+      });
+    });
+  } catch (_) {}
+
+  items.sort((a, b) => a.date - b.date);
+  _timelineState.items = items;
+  _timelineState.index = 0;
+
+  if (items.length === 0) {
+    loading.style.display = 'none';
+    empty.style.display = 'block';
+    hud.style.display = 'block';
+    installTimelineKeys();
+    return;
+  }
+
+  // Populate list
+  items.forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className = 'hud-item' + (idx === 0 ? ' active' : '');
+    const dateStr = formatIdeaDate(item.idea) || 'Unknown date';
+    row.textContent = `${dateStr} — ${item.att.name || 'Document'}`;
+    row.onclick = () => timelineSelect(idx);
+    listEl.appendChild(row);
+  });
+
+  loading.style.display = 'none';
+  content.style.display = 'flex';
+  hud.style.display = 'block';
+
+  // Initial preview
+  timelineSelect(0);
+  installTimelineKeys();
+}
+
+function closeTimelineHUD() {
+  const hud = document.getElementById('timelineHUD');
+  if (hud) hud.style.display = 'none';
+  removeTimelineKeys();
+}
+
+function timelineSelect(index) {
+  const { items } = _timelineState;
+  if (!items || items.length === 0) return;
+  if (index < 0) index = 0;
+  if (index >= items.length) index = items.length - 1;
+  _timelineState.index = index;
+
+  // Update active row
+  const listEl = document.getElementById('timelineList');
+  if (listEl) {
+    Array.from(listEl.children).forEach((el, i) => {
+      if (el.classList) el.classList.toggle('active', i === index);
+    });
+  }
+
+  // Update date
+  const dateEl = document.getElementById('timelineDate');
+  if (dateEl) dateEl.textContent = formatIdeaDate(items[index].idea) || '—';
+
+  // Render preview
+  renderTimelinePreview(items[index]);
+  // Update share URL field if visible
+  const share = document.getElementById('timelineShare');
+  if (share && share.style.display !== 'none') updateTimelineShareUrl();
+}
+
+function renderTimelinePreview(entry) {
+  const container = document.getElementById('timelinePreview');
+  if (!container) return;
+  container.innerHTML = '';
+  try {
+    const att = entry.att;
+    const url = att.url || att.dataUrl;
+    const type = att.type || (att.name ? guessMimeType(att.name) : '');
+    if (!url) {
+      container.textContent = 'No preview available';
+      return;
+    }
+    if (type === 'application/pdf') {
+      const iframe = document.createElement('iframe');
+      iframe.src = url;
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+      iframe.style.border = 'none';
+      container.appendChild(iframe);
+      return;
+    }
+    if (type === 'text/csv' || type.startsWith('text/')) {
+      fetch(url).then(r => r.text()).then(text => {
+        const pre = document.createElement('pre');
+        pre.style.whiteSpace = 'pre-wrap';
+        pre.style.fontSize = '11px';
+        pre.textContent = text.slice(0, 5000);
+        container.appendChild(pre);
+      }).catch(() => {
+        const a = document.createElement('a');
+        a.href = url; a.textContent = 'Open document'; a.target = '_blank';
+        container.appendChild(a);
+      });
+      return;
+    }
+    if (
+      type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      type === 'application/msword' ||
+      (att.name && (att.name.toLowerCase().endsWith('.docx') || att.name.toLowerCase().endsWith('.doc')))
+    ) {
+      const viewerUrl = `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(url)}`;
+      const iframe = document.createElement('iframe');
+      iframe.src = viewerUrl;
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+      iframe.style.border = 'none';
+      container.appendChild(iframe);
+      return;
+    }
+    // Fallback: link
+    const a = document.createElement('a');
+    a.href = url; a.textContent = att.name || 'Open'; a.target = '_blank';
+    container.appendChild(a);
+  } catch (_) {
+    container.textContent = 'Preview error';
+  }
+}
+
+function timelineNext() { timelineSelect(_timelineState.index + 1); }
+function timelinePrev() { timelineSelect(_timelineState.index - 1); }
+
+function toggleTimelineShare() {
+  const el = document.getElementById('timelineShare');
+  if (!el) return;
+  const visible = el.style.display !== 'none';
+  el.style.display = visible ? 'none' : 'block';
+  if (!visible) updateTimelineShareUrl();
+}
+
+function updateTimelineShareUrl() {
+  const input = document.getElementById('timelineShareUrl');
+  if (!input) return;
+  const { items, index } = _timelineState;
+  const item = items[index];
+  const url = `${location.origin}${location.pathname}#timeline=b${item.ideaIndex}-a${item.attIndex}`;
+  input.value = url;
+}
+
+function copyTimelineShareUrl() {
+  const input = document.getElementById('timelineShareUrl');
+  if (!input) return;
+  input.select();
+  try { document.execCommand('copy'); } catch (_) {}
+}
+
+function installTimelineKeys() {
+  removeTimelineKeys();
+  _timelineState.keyHandler = (e) => {
+    const isTypingTarget = (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable));
+    if (isTypingTarget) return;
+    if (e.key === 'Escape') { closeTimelineHUD(); return; }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); timelinePrev(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); timelineNext(); }
+  };
+  document.addEventListener('keydown', _timelineState.keyHandler);
+}
+
+function removeTimelineKeys() {
+  if (_timelineState.keyHandler) {
+    document.removeEventListener('keydown', _timelineState.keyHandler);
+    _timelineState.keyHandler = null;
+  }
+}
+
+// ---- Media HUD (Audio/Video)
+function openMediaPlayback() {
+  const hud = document.getElementById('mediaHUD');
+  const loading = document.getElementById('mediaLoading');
+  const content = document.getElementById('mediaContent');
+  const empty = document.getElementById('mediaEmpty');
+  if (!hud || !loading || !content || !empty) return;
+
+  loading.style.display = 'block';
+  content.style.display = 'none';
+  empty.style.display = 'none';
+
+  const items = [];
+  try {
+    (ideas || []).forEach((idea, ideaIndex) => {
+      // bubble-level audio
+      if (idea.audio && idea.audio.url) {
+        items.push({ idea, ideaIndex, kind: 'audio', url: idea.audio.url, name: idea.audio.name || 'Audio', date: parseIdeaDate(idea) });
+      }
+      if (Array.isArray(idea.attachments)) {
+        idea.attachments.forEach((att, attIndex) => {
+          if (!att || !isMediaAttachment(att)) return;
+          const type = att.type || (att.name ? guessMimeType(att.name) : '');
+          const kind = (type && type.startsWith('video/')) ? 'video' : 'audio';
+          items.push({ idea, ideaIndex, att, attIndex, kind, url: att.url || att.dataUrl, name: att.name || kind, date: parseIdeaDate(idea) });
+        });
+      }
+    });
+  } catch (_) {}
+
+  items.sort((a, b) => a.date - b.date);
+  _mediaState.items = items;
+  _mediaState.index = 0;
+
+  if (items.length === 0) {
+    loading.style.display = 'none';
+    empty.style.display = 'block';
+    hud.style.display = 'block';
+    installMediaKeys();
+    return;
+  }
+
+  loading.style.display = 'none';
+  content.style.display = 'flex';
+  hud.style.display = 'block';
+
+  mediaSelect(0);
+  installMediaKeys();
+}
+
+function closeMediaHUD() {
+  const hud = document.getElementById('mediaHUD');
+  // Stop any active media playback
+  try {
+    const container = document.getElementById('mediaPreview');
+    if (container) {
+      const vids = container.querySelectorAll('video');
+      vids.forEach(v => { try { v.pause(); v.removeAttribute('src'); v.load(); } catch(_) {} });
+      const auds = container.querySelectorAll('audio');
+      auds.forEach(a => { try { a.pause(); a.removeAttribute('src'); a.load(); } catch(_) {} });
+      // Optionally clear preview to release elements
+      container.innerHTML = '';
+    }
+  } catch(_) {}
+  if (hud) hud.style.display = 'none';
+  removeMediaKeys();
+}
+
+function mediaSelect(index) {
+  const { items } = _mediaState;
+  if (!items || items.length === 0) return;
+  if (index < 0) index = 0;
+  if (index >= items.length) index = items.length - 1;
+  _mediaState.index = index;
+
+  const item = items[index];
+  const dateEl = document.getElementById('mediaDate');
+  if (dateEl) dateEl.textContent = formatIdeaDate(item.idea) || '—';
+
+  const container = document.getElementById('mediaPreview');
+  if (!container) return;
+  container.innerHTML = '';
+  if (!item.url) { container.textContent = 'No media URL'; return; }
+  if (item.kind === 'video') {
+    const video = document.createElement('video');
+    video.src = item.url; video.controls = true; video.autoplay = true; video.style.maxWidth = '100%'; video.style.maxHeight = '70vh';
+    container.appendChild(video);
+  } else {
+    const audio = document.createElement('audio');
+    audio.src = item.url; audio.controls = true; audio.autoplay = true; audio.style.width = '100%';
+    container.appendChild(audio);
+  }
+  const share = document.getElementById('mediaShare');
+  if (share && share.style.display !== 'none') updateMediaShareUrl();
+}
+
+function mediaNext() { mediaSelect(_mediaState.index + 1); }
+function mediaPrev() { mediaSelect(_mediaState.index - 1); }
+
+function toggleMediaShare() {
+  const el = document.getElementById('mediaShare');
+  if (!el) return;
+  const visible = el.style.display !== 'none';
+  el.style.display = visible ? 'none' : 'block';
+  if (!visible) updateMediaShareUrl();
+}
+
+function updateMediaShareUrl() {
+  const input = document.getElementById('mediaShareUrl');
+  if (!input) return;
+  const { items, index } = _mediaState;
+  const item = items[index];
+  let token = `b${item.ideaIndex}`;
+  if (typeof item.attIndex === 'number') token += `-m${item.attIndex}`;
+  else token += `-ma`; // bubble audio
+  const url = `${location.origin}${location.pathname}#media=${token}`;
+  input.value = url;
+}
+
+function copyMediaShareUrl() {
+  const input = document.getElementById('mediaShareUrl');
+  if (!input) return;
+  input.select();
+  try { document.execCommand('copy'); } catch (_) {}
+}
+
+function installMediaKeys() {
+  removeMediaKeys();
+  _mediaState.keyHandler = (e) => {
+    const isTypingTarget = (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable));
+    if (isTypingTarget) return;
+    if (e.key === 'Escape') { closeMediaHUD(); return; }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); mediaPrev(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); mediaNext(); }
+  };
+  document.addEventListener('keydown', _mediaState.keyHandler);
+}
+
+function removeMediaKeys() {
+  if (_mediaState.keyHandler) {
+    document.removeEventListener('keydown', _mediaState.keyHandler);
+    _mediaState.keyHandler = null;
+  }
+}
+
+// Integrate with ESC close-all helper
+(function patchCloseAllPanels() {
+  const original = typeof closeAllPanels === 'function' ? closeAllPanels : null;
+  window.closeAllPanels = function() {
+    // Close our HUDs
+    closeTimelineHUD();
+    closeMediaHUD();
+    // Call original if existed
+    if (original) try { original(); } catch (_) {}
+  };
+})();
+
+// Export to window for UI buttons
+window.openTimelinePlayback = openTimelinePlayback;
+window.closeTimelineHUD = closeTimelineHUD;
+window.timelineNext = timelineNext;
+window.timelinePrev = timelinePrev;
+window.toggleTimelineShare = toggleTimelineShare;
+window.copyTimelineShareUrl = copyTimelineShareUrl;
+
+window.openMediaPlayback = openMediaPlayback;
+window.closeMediaHUD = closeMediaHUD;
+window.mediaNext = mediaNext;
+window.mediaPrev = mediaPrev;
+window.toggleMediaShare = toggleMediaShare;
+window.copyMediaShareUrl = copyMediaShareUrl;
+
 
 function togglePanelSide() {
   const panel = document.getElementById('panel');
