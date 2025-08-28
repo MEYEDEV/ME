@@ -6875,15 +6875,19 @@ function loadRadioTxtIntoMusic() {
       }
       if (list) {
         list.innerHTML = '';
-        lines.forEach((url) => {
+        lines.forEach((line, idx) => {
+          const parts = line.split('|');
+          const title = (parts[0] || '').trim();
+          const url = (parts[1] || parts[0] || '').trim();
+          if (!url) return;
           const item = document.createElement('div');
           item.className = 'music-item';
-          item.textContent = url;
-          item.title = url;
+          item.textContent = title || url;
+          item.title = `${title || url}\n${url}`;
           item.onclick = () => {
             try {
               if (typeof playRadioStreamFromPlaylist === 'function') {
-                playRadioStreamFromPlaylist(url);
+                playRadioStreamFromPlaylist(url, idx);
               } else if (typeof playRadioStream === 'function') {
                 playRadioStream(url);
               }
