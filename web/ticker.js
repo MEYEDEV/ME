@@ -260,6 +260,7 @@ class NewsTicker {
         if (visibleEl) visibleEl.checked = !!this.preferences.visible;
         if (serviceEl) serviceEl.value = this.preferences.service || 'sports';
         if (colorEl) colorEl.value = this.preferences.headlineColor || '#ffffff';
+        if (accentEl) accentEl.value = this.preferences.accentColor || '#8FE04A';
         if (speedEl) {
             speedEl.value = String(this.preferences.speed || this.options.speed);
             if (speedVal) speedVal.textContent = `${speedEl.value}px/s`;
@@ -384,6 +385,7 @@ class NewsTicker {
             content.classList.remove('hidden');
             container.style.background = '';
             container.style.border = '';
+            container.style.boxShadow = '';
             const currentService = this.serviceCycle[this.currentServiceIndex];
             btn.textContent = currentService.label;
             btn.style.border = '';
@@ -391,6 +393,7 @@ class NewsTicker {
             content.classList.add('hidden');
             container.style.background = 'transparent';
             container.style.border = 'none';
+            container.style.boxShadow = 'none';
             btn.textContent = '📤';
             btn.style.border = '2px solid #8FE04A';
         }
@@ -437,6 +440,7 @@ class NewsTicker {
         this.preferences.service = 'sports';
         this.preferences.headlineColor = '#ffffff';
         this.preferences.speed = 60;
+        this.preferences.accentColor = '#8FE04A';
         this.savePreferences();
         
         // Update button text
@@ -446,6 +450,7 @@ class NewsTicker {
         // Reset headline color and speed
         this.setHeadlineColor('#ffffff');
         this.setSpeed(60);
+        this.setAccentColor('#8FE04A');
         
         // Update settings panel controls if open
         const panel = document.getElementById('news-settings-panel');
