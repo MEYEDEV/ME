@@ -6866,35 +6866,31 @@ window.resizePanelToggle = resizePanelToggle;
 
 function loadRadioTxtIntoMusic() {
   try {
-    fetch('Radio.txt', { cache: 'no-cache' }).then(r => r.text()).then(text => {
+    // Close the single URL input panel immediately
+    try {
+      const radioPanel = document.getElementById('radioInputPanel');
+      if (radioPanel) radioPanel.style.display = 'none';
+    } catch(_) {}
+
+    fetch('Radio.txt', { cache: 'no-cache' }).then(r => r.text()).then(async text => {
       const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const list = document.getElementById('musicList');
+      // Normalize to the same format the playlist loader expects
+      // Use string format "Title|URL" (or just URL if no title)
+      window.uploadedMusicPlaylist = lines.map(line => {
+        const parts = line.split('|');
+        if (parts.length >= 2) {
+          return `${parts[0].trim()}|${parts[1].trim()}`;
+        }
+        return line;
+      });
+      // Ensure music panel is visible
       const panel = document.getElementById('musicPanel');
       if (panel && (panel.style.display === 'none' || getComputedStyle(panel).display === 'none') && typeof toggleMusicPanel === 'function') {
         toggleMusicPanel();
       }
-      if (list) {
-        list.innerHTML = '';
-        lines.forEach((line, idx) => {
-          const parts = line.split('|');
-          const title = (parts[0] || '').trim();
-          const url = (parts[1] || parts[0] || '').trim();
-          if (!url) return;
-          const item = document.createElement('div');
-          item.className = 'music-item';
-          item.textContent = title || url;
-          item.title = `${title || url}\n${url}`;
-          item.onclick = () => {
-            try {
-              if (typeof playRadioStreamFromPlaylist === 'function') {
-                playRadioStreamFromPlaylist(url, idx);
-              } else if (typeof playRadioStream === 'function') {
-                playRadioStream(url);
-              }
-            } catch(_) {}
-          };
-          list.appendChild(item);
-        });
+      // Rebuild list using the central loader so state persists across open/close
+      if (typeof loadMusicList === 'function') {
+        await loadMusicList();
       }
     }).catch(() => {
       alert('Could not load Radio.txt');
