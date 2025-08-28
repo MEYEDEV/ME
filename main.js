@@ -6864,6 +6864,41 @@ function resizePanelToggle() {
 
 window.resizePanelToggle = resizePanelToggle;
 
+function loadRadioTxtIntoMusic() {
+  try {
+    fetch('Radio.txt', { cache: 'no-cache' }).then(r => r.text()).then(text => {
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const list = document.getElementById('musicList');
+      const panel = document.getElementById('musicPanel');
+      if (panel && (panel.style.display === 'none' || getComputedStyle(panel).display === 'none') && typeof toggleMusicPanel === 'function') {
+        toggleMusicPanel();
+      }
+      if (list) {
+        list.innerHTML = '';
+        lines.forEach((url) => {
+          const item = document.createElement('div');
+          item.className = 'music-item';
+          item.textContent = url;
+          item.title = url;
+          item.onclick = () => {
+            try {
+              if (typeof playRadioStreamFromPlaylist === 'function') {
+                playRadioStreamFromPlaylist(url);
+              } else if (typeof playRadioStream === 'function') {
+                playRadioStream(url);
+              }
+            } catch(_) {}
+          };
+          list.appendChild(item);
+        });
+      }
+    }).catch(() => {
+      alert('Could not load Radio.txt');
+    });
+  } catch (_) {}
+}
+window.loadRadioTxtIntoMusic = loadRadioTxtIntoMusic;
+
 // Attempt to re-resolve attachments/audio URLs from a local session folder
 async function resolveAllExternalAssets(ideasArr) {
   try {
