@@ -2651,8 +2651,23 @@ function openCopyRepository() {
   updateControlHubHUD(true, 'Opened Copy Repository');
 }
 function openTutorialAssistant() {
-  showControlHubPanel();
-  updateControlHubHUD(true, 'Opened Tutorial / Assistant');
+  try {
+    // Toggle assistant overlay/video the same as the 'A' hotkey path
+    const lucky = document.getElementById('lucky-assistant');
+    if (lucky) {
+      const showing = getComputedStyle(lucky).display !== 'none';
+      if (showing) {
+        try { lucky.pause(); } catch(_) {}
+        lucky.style.display = 'none';
+      } else {
+        lucky.style.display = 'block';
+        try { lucky.muted = false; lucky.volume = 1.0; lucky.play(); } catch(_) {}
+      }
+    } else if (typeof toggleAssistantOverlay === 'function') {
+      toggleAssistantOverlay();
+    }
+  } catch(_) {}
+  updateControlHubHUD(true, 'Toggled Tutorial / Assistant');
 }
 function openBroadcastMode() {
   showControlHubPanel();
