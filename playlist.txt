@@ -9,6 +9,7 @@ NBAFinals.txt
 RedLetterMedia.txt
 Trailers.txt
 Movie.txt
+ShortFilms.txt
 DungeonsDragons.txt
 JayceWheeledWarriors.txt
 WrestlingShoots.txt

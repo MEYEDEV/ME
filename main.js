@@ -2639,7 +2639,35 @@ window.MindseyeHooks = window.MindseyeHooks || {
     load: async (queryOrId) => ({ ok: true, tweets: [] })
   },
   resources: {
-    load: async () => ({ ok: true, items: [] })
+    load: async () => {
+      try {
+        const paths = ['resources.txt', '/resources.txt'];
+        let text = '';
+        for (const p of paths) {
+          try {
+            const res = await fetch(p, { cache: 'no-cache' });
+            if (res.ok) { text = await res.text(); break; }
+          } catch (_) {}
+        }
+        if (!text) return { ok: true, items: [] };
+        const items = [];
+        text.split(/\r?\n/).forEach(line => {
+          if (!line) return;
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) return;
+          const parts = trimmed.split('|');
+          const url = (parts[0] || '').trim();
+          const description = (parts[1] || '').trim();
+          if (!url) return;
+          let name = url;
+          try { name = new URL(url).hostname || url; } catch(_) {}
+          items.push({ url, name, description });
+        });
+        return { ok: true, items };
+      } catch (_) {
+        return { ok: true, items: [] };
+      }
+    }
   }
 };
 
@@ -2773,7 +2801,7 @@ function renderControlHubSection(section) {
       break;
     }
     case 'resources': {
-      root.innerHTML = '<div class="hub-section"><h4>📁 Resource Drawer</h4><div class="hub-row"><button id="loadResources" class="hub-button">Refresh</button><input id="resFilter" class="hub-input" placeholder="Filter"></div><div id="resList" style="font-size:12px; color:#ccc; max-height:200px; overflow:auto;"></div></div>';
+      root.innerHTML = '<div class="hub-section"><h4>📁 Resource Drawer</h4><div class="hub-row"><button id="loadResources" class="hub-button">Refresh</button><input id="resFilter" class="hub-input" placeholder="Filter by name, url, description"></div><div id="resList" style="font-size:12px; color:#ccc; max-height:200px; overflow:auto;"></div></div>';
       const btn = root.querySelector('#loadResources');
       const filter = root.querySelector('#resFilter');
       const list = root.querySelector('#resList');
@@ -2782,8 +2810,19 @@ function renderControlHubSection(section) {
         const res = await window.MindseyeHooks.resources.load();
         const items = (res && res.ok && Array.isArray(res.items)) ? res.items : [];
         const q = (filter.value || '').toLowerCase();
-        const filtered = items.filter(i => !q || (i.name && i.name.toLowerCase().includes(q)) || (i.url && i.url.toLowerCase().includes(q)));
-        list.innerHTML = filtered.map(i => `<div style=\"margin:4px 0;\"><a href=\"${i.url}\" target=\"_blank\">${i.name || i.url}</a></div>`).join('') || 'No resources.';
+        const filtered = items.filter(i => !q ||
+          (i.name && i.name.toLowerCase().includes(q)) ||
+          (i.url && i.url.toLowerCase().includes(q)) ||
+          (i.description && i.description.toLowerCase().includes(q))
+        );
+        list.innerHTML = filtered.map(i => `
+          <div style=\"margin:6px 0; padding:6px; border:1px solid #333; border-radius:6px; background: rgba(255,255,255,0.03);\">
+            <div style=\"display:flex; align-items:center; justify-content:space-between; gap:8px;\">
+              <a href=\"${i.url}\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color:#8FE04A; text-decoration:none; word-break:break-all;\">${i.name || i.url}</a>
+            </div>
+            ${i.description ? `<div style=\\"margin-top:4px; color:#bbb; font-size:11px;\\">${i.description}</div>` : ''}
+          </div>
+        `).join('') || 'No resources.';
       }
       if (btn) btn.onclick = refresh;
       if (filter) filter.oninput = refresh;
