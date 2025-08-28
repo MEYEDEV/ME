@@ -491,7 +491,7 @@ const themePresets = {
     "vx": 0.9434888484647361,
     "vy": 1.0412541649520315,
     "color": "hsl(172.85277000428462, 100%, 70%)",
-    "textColor": "hsl(246, 100%, 56.83269264442881%)",
+    "textColor": "hsl(341, 100%, 51.45313089920509%)",
     "radius": 80,
     "font": "Monaco",
     "image": "images/red.png",
@@ -616,7 +616,7 @@ const themePresets = {
     "urls": []
   },
   {
-    "title": "Walter-Pierre Bouman Nottingham~GIC",
+    "title": "Walter-Pierre Bouman    Nottingham~GIC",
     "description": "",
     "x": 786,
     "y": 624,
@@ -626,6 +626,7 @@ const themePresets = {
     "textColor": "hsl(268, 100%, 51.97926867547078%)",
     "radius": 80,
     "font": "Trebuchet MS",
+    "image": "images/pen.png",
     "shape": "circle",
     "heightRatio": 1,
     "glow": true,
@@ -985,6 +986,7 @@ const themePresets = {
     "textColor": "white",
     "radius": 75,
     "font": "Monaco",
+    "image": "images/ink.png",
     "shape": "circle",
     "heightRatio": 1,
     "glow": true,
