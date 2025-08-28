@@ -2407,6 +2407,11 @@ function openAnalysisIframe(type) {
     setCreditsDropdowns();
     return;
   }
+  // Karaoke cannot be embedded due to X-Frame-Options/CSP; open in a new tab
+  if (type === 'karaoke') {
+    try { window.open('https://www.karafun.co.uk/web/?song=5489', '_blank'); } catch(_) {}
+    return;
+  }
   
   // Check for suggestions cooldown
   if (type === 'suggestions' && suggestionsCooldownActive) {
@@ -2426,11 +2431,7 @@ function openAnalysisIframe(type) {
   if (container && iframe) {
     // Set the iframe source based on type
     // Adjust container aspect for specific experiences
-    if (type === 'karaoke') {
-      container.classList.add('landscape');
-    } else {
-      container.classList.remove('landscape');
-    }
+    container.classList.remove('landscape');
     if (type === 'suggestions') {
       iframe.src = 'https://jannerap.github.io/Trailers/';
       
@@ -2441,8 +2442,6 @@ function openAnalysisIframe(type) {
       
       // Start cooldown for ideas button
       startIdeasCooldown();
-    } else if (type === 'karaoke') {
-      iframe.src = 'https://www.karafun.co.uk/web/?song=5489';
     } else {
       iframe.src = 'https://ajanner.com';
     }
