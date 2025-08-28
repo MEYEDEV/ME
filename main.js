@@ -2425,6 +2425,12 @@ function openAnalysisIframe(type) {
   
   if (container && iframe) {
     // Set the iframe source based on type
+    // Adjust container aspect for specific experiences
+    if (type === 'karaoke') {
+      container.classList.add('landscape');
+    } else {
+      container.classList.remove('landscape');
+    }
     if (type === 'suggestions') {
       iframe.src = 'https://jannerap.github.io/Trailers/';
       
@@ -2435,6 +2441,8 @@ function openAnalysisIframe(type) {
       
       // Start cooldown for ideas button
       startIdeasCooldown();
+    } else if (type === 'karaoke') {
+      iframe.src = 'https://singa.com/en/';
     } else {
       iframe.src = 'https://ajanner.com';
     }
@@ -2485,6 +2493,7 @@ function closeAnalysisIframe() {
     
     // Hide the container
     container.style.display = 'none';
+    container.classList.remove('landscape');
     
     logger.info('📊 Analysis iframe closed');
   }
