@@ -1658,6 +1658,30 @@ button[data-png="bucheck"].has-png {
   visibility: visible;
 }
 
+/* Pop-out button overlay */
+#videoPlayer .video-popout-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #4CAF50;
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20002;
+  pointer-events: auto;
+}
+
+#videoPlayer .video-popout-btn:hover {
+  filter: brightness(1.2);
+}
+
 #videoControls {
   position: fixed;
   bottom: 50px;

@@ -2560,6 +2560,34 @@ function initVideoPlayer() {
       }
     });
   }
+
+  // ESC key closes player when highlighted (hovered or focused)
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    const player = document.getElementById('videoPlayer');
+    const iframe = document.getElementById('videoIframe');
+    if (!player || getComputedStyle(player).display === 'none') return;
+    const rect = player.getBoundingClientRect();
+    const mx = window._lastMouseX, my = window._lastMouseY;
+    const hovered = typeof mx === 'number' && typeof my === 'number' && mx >= rect.left && mx <= rect.right && my >= rect.top && my <= rect.bottom;
+    const activeInside = player.contains(document.activeElement);
+    if (hovered || activeInside) {
+      if (typeof videoClose === 'function') {
+        videoClose();
+      } else if (iframe) {
+        iframe.src = '';
+        player.style.display = 'none';
+        player.style.pointerEvents = 'none';
+        player.style.visibility = 'hidden';
+      }
+    }
+  });
+
+  // Track mouse position to infer hover state
+  document.addEventListener('mousemove', function(e) {
+    window._lastMouseX = e.clientX;
+    window._lastMouseY = e.clientY;
+  });
 }
 
 // ===== VIDEO AS BACKGROUND TOGGLE =====
@@ -3757,6 +3785,27 @@ async function toggleVideoPlayer() {
       controls.style.pointerEvents = 'auto';
       controls.style.zIndex = '9997';
       controls.style.visibility = 'visible';
+    }
+
+    // Wire pop-out button each time player is shown
+    const popBtn = document.getElementById('videoPopoutBtn');
+    const iframeEl = document.getElementById('videoIframe');
+    if (popBtn && iframeEl) {
+      popBtn.onclick = function() {
+        try {
+          const iframe = document.getElementById('videoIframe');
+          const src = (iframe && iframe.src) ? iframe.src : '';
+          if (!src) return;
+          // If YouTube embed, convert to watch URL
+          const ytMatch = src.match(/youtube\.com\/embed\/([^?&]+)/);
+          if (ytMatch && ytMatch[1]) {
+            const watchUrl = `https://www.youtube.com/watch?v=${ytMatch[1]}`;
+            window.open(watchUrl, '_blank');
+          } else {
+            window.open(src, '_blank');
+          }
+        } catch(_) {}
+      };
     }
     
     // Initialize video player only if it hasn't been initialized OR if it was closed (iframe src is empty)
