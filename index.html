@@ -555,13 +555,13 @@
 
   <!-- Radio URL Input Panel -->
   <div class="radio-input-panel" id="radioInputPanel" style="display: none;">
-    <h3>📻 Radio Station</h3>
+    <h3><button onclick="loadRadioTxtIntoMusic()" title="🔊" style="background: linear-gradient(45deg, #0C090A, #040720); border: none; color: white; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: bold;">📡</button>Radio Station 📻</h3>
     <div style="margin-bottom: 15px;">
       <label style="display: block; margin-bottom: 8px; color: #fff; font-weight: bold;">Enter Radio Stream URL:</label>
       <input type="text" id="radioUrlInput" placeholder="https://example.com/stream.m3u8" style="width: 100%; padding: 10px; border: 2px solid #4CAF50; border-radius: 6px; background: rgba(0, 0, 0, 0.8); color: #fff; font-size: 14px; outline: none;" />
     </div>
     <div style="display: flex; gap: 10px; justify-content: flex-end;">
-      <button onclick="loadRadioTxtIntoMusic()" title="🗃️" style="background: linear-gradient(45deg, #FF6EC7, #FF1493); border: none; color: white; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: bold;">📡</button>
+      
       <button onclick="cancelRadioInput()" style="background: linear-gradient(45deg, #f44336, #da190b); border: none; color: white; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">Cancel</button>
       <button onclick="confirmRadioInput()" style="background: linear-gradient(45deg, #4CAF50, #45a049); border: none; color: white; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">Connect</button>
     </div>
