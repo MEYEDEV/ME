@@ -5010,7 +5010,7 @@ const themePresets = {
             "rotation": 0
           }
          ],
-        bg: "images/games21.png"
+        bg: "images/bristol1.png"
       },
       "example": {
         name: "Example",
@@ -5046,7 +5046,7 @@ const themePresets = {
             "rotation": 0
           }
         ],
-        bg: "images/blank2.png"
+        bg: "images/bristol2.png"
       }
     }
   },
