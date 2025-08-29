@@ -2648,6 +2648,32 @@ function openResourceDrawer() {
   renderControlHubSection('resources');
   updateControlHubHUD(true, 'Opened Resource Drawer');
 }
+
+// ===== Complaints System Overlay =====
+function openComplaintsOverlay() {
+  try {
+    const overlay = document.getElementById('complaintsOverlay');
+    const iframe = document.getElementById('complaintsIframe');
+    if (!overlay || !iframe) return;
+    iframe.src = 'https://whereismaya.github.io/Complaints/ComplaintsTracker/';
+    overlay.style.display = 'block';
+    updateControlHubHUD(true, 'Opened Complaints System');
+  } catch (_) {}
+}
+
+function closeComplaintsOverlay() {
+  try {
+    const overlay = document.getElementById('complaintsOverlay');
+    const iframe = document.getElementById('complaintsIframe');
+    if (!overlay || !iframe) return;
+    iframe.src = '';
+    overlay.style.display = 'none';
+    updateControlHubHUD(true, 'Closed Complaints System');
+  } catch (_) {}
+}
+
+window.openComplaintsOverlay = openComplaintsOverlay;
+window.closeComplaintsOverlay = closeComplaintsOverlay;
 function openExportBundle() {
   showControlHubPanel();
   renderControlHubSection('export');
