@@ -1218,6 +1218,90 @@ button[data-png="bucheck"].has-png {
   overflow-y: auto;
 }
 
+/* ===== THEME PASSWORD OVERLAY ===== */
+.password-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: none;
+  z-index: 70020;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-panel {
+  position: relative;
+  width: min(360px, 92vw);
+  background: rgba(22,22,22,0.96);
+  border: 2px solid #4CAF50;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  color: white;
+}
+
+.password-header {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  font-weight: bold;
+  color: #8FE04A;
+}
+
+.password-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.password-message { color: #ddd; font-size: 13px; }
+
+.password-body input[type="password"] {
+  background: rgba(0,0,0,0.7);
+  color: gold;
+  border: 2px solid darkgreen;
+  border-radius: 6px;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.password-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+.password-btn {
+  background: rgba(0,0,0,0.8);
+  color: white;
+  border: 1px solid #4CAF50;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.password-btn.confirm { background: linear-gradient(45deg, #4CAF50, #45a049); border: none; }
+.password-btn.cancel { background: linear-gradient(45deg, #f44336, #da190b); border: none; }
+
+.password-btn:hover { filter: brightness(1.1); }
+
+.password-close {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 0, 0, 0.9);
+  color: white;
+  border: 2px solid #ff0000;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.password-close:hover { filter: brightness(1.2); }
+
 #diceSlider input[type="range"] {
   -webkit-appearance: none;
   appearance: none;

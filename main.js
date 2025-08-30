@@ -3519,6 +3519,14 @@ function addIdea(x, y, title = "", description = "", color = randomColor(), text
 // ===== THEME SYSTEM =====
 
 function switchTheme(themeName) {
+  // Gate Maya behind a password overlay
+  if (themeName === 'maya') {
+    // If not already unlocked, open password panel and bail
+    if (!window._mayaUnlocked) {
+      showThemePasswordPanel('maya');
+      return;
+    }
+  }
   logger.debugSparse('🎨 Switching theme to:', themeName, null, 60);
   currentTheme = themeName;
   backgroundIndex = 1;
@@ -3566,6 +3574,52 @@ function switchTheme(themeName) {
     }
   }
 }
+
+// ===== THEME PASSWORD HANDLERS =====
+function showThemePasswordPanel(requestedTheme) {
+  try {
+    window._requestedProtectedTheme = requestedTheme;
+    const overlay = document.getElementById('themePasswordOverlay');
+    const input = document.getElementById('themePasswordInput');
+    if (overlay) overlay.style.display = 'flex';
+    if (input) {
+      input.value = '';
+      setTimeout(() => { try { input.focus(); } catch(_){} }, 50);
+    }
+  } catch(_) {}
+}
+
+function hideThemePasswordPanel() {
+  const overlay = document.getElementById('themePasswordOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function confirmThemePassword() {
+  const input = document.getElementById('themePasswordInput');
+  const requested = window._requestedProtectedTheme || 'maya';
+  const value = input ? (input.value || '').trim() : '';
+  if (value === 'Facts') {
+    window._mayaUnlocked = true;
+    hideThemePasswordPanel();
+    switchTheme(requested);
+  } else {
+    // Incorrect: revert to default theme and close panel
+    hideThemePasswordPanel();
+    const selector = document.getElementById('themeSelector');
+    if (selector) selector.value = 'default';
+    switchTheme('default');
+  }
+}
+
+function cancelThemePassword() {
+  hideThemePasswordPanel();
+  const selector = document.getElementById('themeSelector');
+  if (selector) selector.value = 'default';
+}
+
+// Export for inline onclick handlers
+window.confirmThemePassword = confirmThemePassword;
+window.cancelThemePassword = cancelThemePassword;
 
 function updatePresetSelector(themeName) {
   const presetSelector = document.getElementById('presetSelector');

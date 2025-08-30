@@ -550,6 +550,22 @@
     <button onclick="hideReadPanel()" style="padding: 8px 16px; background: rgba(0, 0, 0, 0.7); color: gold; border: 2px solid darkgreen; border-radius: 6px; cursor: pointer;">OK</button>
   </div>
 
+  <!-- Theme Password Overlay -->
+  <div id="themePasswordOverlay" class="password-overlay" style="display:none;">
+    <div class="password-panel">
+      <div class="password-header">🔒 Protected Theme</div>
+      <div class="password-body">
+        <div class="password-message">Enter password to access Maya</div>
+        <input type="password" id="themePasswordInput" placeholder="Password" autocomplete="current-password" />
+        <div class="password-actions">
+          <button onclick="confirmThemePassword()" class="password-btn confirm">Unlock</button>
+          <button onclick="cancelThemePassword()" class="password-btn cancel">Cancel</button>
+        </div>
+      </div>
+      <button class="password-close" onclick="cancelThemePassword()" title="Close">✖️</button>
+    </div>
+  </div>
+
   <!-- Canvas -->
   <canvas id="canvas"></canvas>
 
