@@ -2848,7 +2848,7 @@ const themePresets = {
   scripts: {
     presets: {
       "scripts": {
-        name: "BreakPoint",
+        name: "Break Point 🏖️",
         ideas: [
            {
     "title": "Mass Ordeals \u2014 No Crimes",
@@ -3274,7 +3274,7 @@ const themePresets = {
         bg: "images/default1.png"
       },
       "pierrotlemou": {
-        name: "Pierrot Le Mou",
+        name: "Pierrot Le Mou 🏝️",
         ideas: [
   {
     "title": "Opening Monologue",
@@ -3800,7 +3800,7 @@ const themePresets = {
         bg: "images/default6.png"
       },
       "stationary": {
-        name: "Stationary",
+        name: "Stationary 🚊",
         ideas: [
           {
             "title": "📝 Example",
