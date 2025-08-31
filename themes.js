@@ -470,60 +470,6 @@ const themePresets = {
         ],
         bg: "images/games1.png"
       },
-      "pinball": {
-        name: "Pinball",
-        ideas: [
-          {
-            "title": "",
-            "description": "Flippers ready",
-            "x": 400,
-            "y": 300,
-            "vx": 0,
-            "vy": 0,
-            "color": "hsl(0, 100%, 70%)",
-            "textColor": "white",
-            "radius": 30,
-            "font": "Arial",
-            "image": "images/a21.png",
-            "glow": true,
-            "fontSize": 16,
-            "rotation": 0
-          },
-          {
-            "title": "⚡ Bumpers",
-            "description": "Bounce around",
-            "x": 600,
-            "y": 400,
-            "vx": 2.5,
-            "vy": -2.1,
-            "color": "hsl(60, 100%, 70%)",
-            "textColor": "black",
-            "radius": 40,
-            "font": "Arial",
-            "image": "images/a20.png",
-            "glow": true,
-            "fontSize": 14,
-            "rotation": 0
-          },
-          {
-            "title": "",
-            "description": "High score",
-            "x": 800,
-            "y": 200,
-            "vx": -2.8,
-            "vy": 1.9,
-            "color": "hsl(120, 100%, 70%)",
-            "textColor": "white",
-            "radius": 30,
-            "font": "Arial",
-            "glow": true,
-            "image": "images/a22.png",
-            "fontSize": 18,
-            "rotation": 0
-          }
-        ],
-        bg: "images/games17.png"
-      },
       "hockey": {
         name: "Hockey",
         ideas: [
@@ -642,6 +588,60 @@ const themePresets = {
   }
         ],
         bg: "images/games6.png"
+      },
+     "pinball": {
+        name: "Pinball",
+        ideas: [
+          {
+            "title": "",
+            "description": "Flippers ready",
+            "x": 400,
+            "y": 300,
+            "vx": 0,
+            "vy": 0,
+            "color": "hsl(0, 100%, 70%)",
+            "textColor": "white",
+            "radius": 30,
+            "font": "Arial",
+            "image": "images/a21.png",
+            "glow": true,
+            "fontSize": 16,
+            "rotation": 0
+          },
+          {
+            "title": "⚡ Bumpers",
+            "description": "Bounce around",
+            "x": 600,
+            "y": 400,
+            "vx": 2.5,
+            "vy": -2.1,
+            "color": "hsl(60, 100%, 70%)",
+            "textColor": "black",
+            "radius": 40,
+            "font": "Arial",
+            "image": "images/a20.png",
+            "glow": true,
+            "fontSize": 14,
+            "rotation": 0
+          },
+          {
+            "title": "",
+            "description": "High score",
+            "x": 800,
+            "y": 200,
+            "vx": -2.8,
+            "vy": 1.9,
+            "color": "hsl(120, 100%, 70%)",
+            "textColor": "white",
+            "radius": 30,
+            "font": "Arial",
+            "glow": true,
+            "image": "images/a22.png",
+            "fontSize": 18,
+            "rotation": 0
+          }
+        ],
+        bg: "images/games17.png"
       },
       "chess": {
         name: "Chess",
