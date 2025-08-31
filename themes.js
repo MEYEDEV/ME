@@ -278,7 +278,7 @@ const themePresets = {
     "ballVelocityDecay": 0
   }
          ],
-        bg: "images/default5.png"
+        bg: "images/default1.png"
       },
           
       "New": {
