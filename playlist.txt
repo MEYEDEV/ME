@@ -12,6 +12,7 @@ Movie.txt
 ShortFilms.txt
 DungeonsDragons.txt
 JayceWheeledWarriors.txt
+WrestlingBios.txt
 WrestlingShoots.txt
 TheGummiBears.txt
 TheRacoons.txt
